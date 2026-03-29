@@ -1,98 +1,282 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# babki-back
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+`babki-back` is a NestJS + TypeScript REST API for personal-finance data, backed by MongoDB via Mongoose. The codebase exposes versioned endpoints for users, balances, expenses, debts, expense categories, and monthly/yearly summaries.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## What Is In The Repo
 
-## Description
+The application currently contains these functional areas:
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- `users`: create, list, search, update, and delete users
+- `balances`: store one balance snapshot per user
+- `expenses`: track dated expenses with categories and descriptions
+- `debts`: track debt principal, remaining amount, creditor, due date, and status
+- `expense-categories`: manage shared categories for expenses
+- `reports`: build monthly and yearly summary responses
 
-## Project setup
+Technical cross-cutting behavior:
 
-```bash
-$ npm install
+- global request validation via Nest `ValidationPipe`
+- MongoDB ObjectId validation via a custom pipe
+- normalized error payloads via a global exception filter
+- request logging via a global interceptor
+
+## Tech Stack
+
+- Node.js
+- NestJS
+- TypeScript
+- MongoDB
+- Mongoose
+- Jest for unit and e2e tests
+
+## Configuration
+
+Runtime configuration is assembled from:
+
+- environment variables in `.env`
+- a JSON secrets file referenced by `SECRETS_FILE_PATH`
+
+Example environment file from the repo:
+
+```env
+NODE_ENV=development
+PORT=5001
+API_PREFIX=api/v1
+SECRETS_FILE_PATH=config/secrets/local.json
+MONGO_DB_NAME=babki_db
 ```
 
-## Compile and run the project
+Example secrets file from the repo:
 
-```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+```json
+{
+  "MONGO_AUTH_ENABLED": false,
+  "MONGO_HOST": "localhost",
+  "MONGO_PORT": 27017,
+  "MONGO_USER": "babki_user",
+  "MONGO_PASSWORD": "change-me",
+  "MONGO_AUTH_SOURCE": "admin"
+}
 ```
 
-## Run tests
+How the app uses these values:
+
+- `PORT`: HTTP port for the Nest app
+- `API_PREFIX`: global API prefix, defaulting to `api/v1`
+- `SECRETS_FILE_PATH`: path to the JSON file with Mongo connection settings
+- `MONGO_DB_NAME`: required database name
+- `MONGO_URI`: optional full Mongo connection string in the secrets file
+- `MONGO_AUTH_ENABLED`: when `true`, the app builds an authenticated Mongo URI from host, port, user, password, and auth source
+
+If `MONGO_DB_NAME` is missing, the service will fail at startup. If auth is enabled but the username or password is missing, startup will also fail.
+
+## Getting Started
+
+### 1. Install dependencies
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm install
 ```
 
-## Deployment
+### 2. Create local environment files
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Copy the example env file and adjust values if needed:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+cp .env.example .env
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Create the secrets file referenced by `SECRETS_FILE_PATH`. The repo includes `config/secrets/example.json` as a template.
 
-## Resources
+```bash
+cp config/secrets/example.json config/secrets/local.json
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+### 3. Start MongoDB
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+The application expects a MongoDB instance that matches the values from your `.env` and secrets file.
 
-## Support
+What is defined in repo:
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+- default host: `localhost`
+- default port: `27017`
+- default DB name from `.env.example`: `babki_db`
+- default secrets file path: `config/secrets/local.json`
 
-## Stay in touch
+What is not defined in repo:
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+- a Docker Compose file
+- a local database bootstrap script
+- a seeded development dataset
 
-## License
+That means you need to start MongoDB using your normal local workflow and make sure it is reachable with the configured host, port, credentials, and database name before starting the API.
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+### 4. Start the service
+
+Development mode with file watching:
+
+```bash
+npm run start:dev
+```
+
+Normal local run:
+
+```bash
+npm run start
+```
+
+Production build and run:
+
+```bash
+npm run build
+npm run start:prod
+```
+
+With the example `.env`, the API starts at:
+
+```text
+http://localhost:5001/api/v1
+```
+
+A simple health check is available at:
+
+```text
+http://localhost:5001/api/v1
+```
+
+Expected response:
+
+```json
+{
+  "status": "ok",
+  "service": "personal-finance-api"
+}
+```
+
+## Testing
+
+Run unit tests:
+
+```bash
+npm run test
+```
+
+Run unit tests in watch mode:
+
+```bash
+npm run test:watch
+```
+
+Run test coverage:
+
+```bash
+npm run test:cov
+```
+
+Run end-to-end tests:
+
+```bash
+npm run test:e2e
+```
+
+Run Jest in debug mode:
+
+```bash
+npm run test:debug
+```
+
+## Developer Workflow
+
+Format source and test files:
+
+```bash
+npm run format
+```
+
+Run ESLint with autofix:
+
+```bash
+npm run lint
+```
+
+Useful startup/debug scripts from `package.json`:
+
+- `npm run start:debug`: starts Nest in debug + watch mode
+- `npm run build`: compiles the application into `dist/`
+
+## Secrets And Local Safety
+
+Recommended local workflow:
+
+1. Keep real secrets in `config/secrets/local.json`.
+2. Commit only templates such as `config/secrets/example.json`.
+3. Point `SECRETS_FILE_PATH` at the correct local file for your environment.
+4. Prefer `MONGO_URI` when you already have a managed Mongo connection string.
+
+Notes:
+
+- `.env.example` and `config/secrets/example.json` are templates, not production credentials.
+- The repo does not include secret-management tooling, vault integration, or environment-specific deployment manifests.
+
+## API Shape
+
+The app wires these modules in `src/app.module.ts`:
+
+- `UsersModule`
+- `BalancesModule`
+- `ExpenseCategoriesModule`
+- `ExpensesModule`
+- `DebtsModule`
+- `ReportsModule`
+
+Representative routes from the checked-in controllers:
+
+- `GET /users`
+- `POST /users`
+- `GET /users/:userId/balance`
+- `PUT /users/:userId/balance`
+- `GET /users/:userId/expenses`
+- `POST /users/:userId/expenses`
+- `GET /users/:userId/debts`
+- `POST /users/:userId/debts`
+- `GET /expense-categories`
+- `POST /expense-categories`
+- `GET /users/:userId/summaries/month`
+- `GET /users/:userId/summaries/year`
+
+All routes are exposed under the configured global prefix, which defaults to `api/v1`.
+
+## Architecture Notes
+
+Request flow:
+
+```text
+HTTP request -> controller -> service -> Mongoose model -> MongoDB -> JSON response
+```
+
+Data relationships visible in the repo:
+
+- users are the parent entity
+- balances, expenses, and debts are scoped by `userId`
+- expenses reference `categoryId`
+- reports aggregate balances, debts, expenses, and categories
+
+Not found in repo:
+
+- authentication or authorization
+- background jobs or queues
+- caching layer
+- external API integrations
+- migration tooling
+- database seeding scripts
+
+## Troubleshooting
+
+If the service fails during startup, check these first:
+
+- MongoDB is running and reachable
+- `MONGO_DB_NAME` is set in `.env`
+- `SECRETS_FILE_PATH` points to an existing JSON file
+- your Mongo auth settings match the actual database configuration
+
+If requests fail validation, the app is likely rejecting unknown fields, invalid ObjectIds, or invalid DTO values through the global validation pipe.

@@ -1,0 +1,23 @@
+import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
+import { Balance, BalanceSchema } from '../balances/schemas/balance.schema';
+import { Debt, DebtSchema } from '../debts/schemas/debt.schema';
+import { Expense, ExpenseSchema } from '../expenses/schemas/expense.schema';
+import { User, UserSchema } from './schemas/user.schema';
+import { UsersController } from './users.controller';
+import { UsersService } from './users.service';
+
+@Module({
+  imports: [
+    MongooseModule.forFeature([
+      { name: User.name, schema: UserSchema },
+      { name: Balance.name, schema: BalanceSchema },
+      { name: Expense.name, schema: ExpenseSchema },
+      { name: Debt.name, schema: DebtSchema },
+    ]),
+  ],
+  controllers: [UsersController],
+  providers: [UsersService],
+  exports: [UsersService, MongooseModule],
+})
+export class UsersModule {}
