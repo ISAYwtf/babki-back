@@ -1,0 +1,42 @@
+services:
+  api:
+    build:
+      context: .
+      target: runtime
+    image: babki-back:local
+    container_name: babki-back-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 5001
+      SECRETS_FILE_PATH: config/secrets/docker-compose.json
+    ports:
+      - "5001:5001"
+    volumes:
+      # Mount runtime DB settings as read-only instead of baking them into the image.
+      - ./config/secrets/docker-compose.json:/app/config/secrets/docker-compose.json:ro
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  mongo:
+    image: mongo:7
+    container_name: babki-back-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      # Persist MongoDB data across container restarts.
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  mongo_data:
+

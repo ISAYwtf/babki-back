@@ -18,9 +18,12 @@ export class BalancesService {
   ) {}
 
   async findByUserId(userId: string) {
-    await this.ensureUserExists(userId);
+    const foundId = await this.ensureUserExists(userId);
 
-    const balance = await this.balanceModel.findOne({ userId }).lean().exec();
+    const balance = await this.balanceModel
+      .findOne({ userId: foundId })
+      .lean()
+      .exec();
 
     if (!balance) {
       throw new NotFoundException(`Balance for user ${userId} not found.`);
@@ -66,5 +69,7 @@ export class BalancesService {
     if (!exists) {
       throw new NotFoundException(`User ${userId} not found.`);
     }
+
+    return exists._id;
   }
 }

@@ -105,7 +105,6 @@ What is defined in repo:
 
 What is not defined in repo:
 
-- a Docker Compose file
 - a local database bootstrap script
 - a seeded development dataset
 
@@ -149,9 +148,80 @@ Expected response:
 ```json
 {
   "status": "ok",
-  "service": "personal-finance-api"
+  "service": "babki-api"
 }
 ```
+
+## Docker Workflow
+
+The repo now includes a containerized local stack:
+
+- `Dockerfile`: multi-stage production image for the NestJS API
+- `docker-compose.yml`: starts the API together with MongoDB
+- `config/secrets/docker-compose.json`: Mongo connection settings used by the API container
+
+### 1. Prepare environment files
+
+The API container still reads `.env`, so create it if you have not already:
+
+```bash
+cp .env.example .env
+```
+
+The default Compose setup overrides `SECRETS_FILE_PATH` to use `config/secrets/docker-compose.json`, which is already included in the repo and points the API to the `mongo` service.
+
+### 2. Build and start the containers
+
+Start the full stack in the foreground:
+
+```bash
+docker compose up --build
+```
+
+Start it in the background:
+
+```bash
+docker compose up --build -d
+```
+
+The services exposed by default are:
+
+- API: `http://localhost:5001/api/v1`
+- MongoDB: `localhost:27017`
+
+### 3. Useful Docker commands
+
+Stop the stack:
+
+```bash
+docker compose down
+```
+
+Stop the stack and remove the MongoDB data volume:
+
+```bash
+docker compose down -v
+```
+
+View container logs:
+
+```bash
+docker compose logs -f api
+docker compose logs -f mongo
+```
+
+Rebuild only the API image after code or dependency changes:
+
+```bash
+docker compose build api
+```
+
+### 4. Notes about the container setup
+
+- MongoDB data is stored in the named Docker volume `mongo_data`.
+- The API container mounts `config/secrets/docker-compose.json` as a read-only file instead of baking secrets into the image.
+- The API image runs as the non-root `node` user for better container security.
+- `depends_on` with a health check delays API startup until MongoDB is ready to accept connections.
 
 ## Testing
 
