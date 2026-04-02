@@ -26,18 +26,17 @@ export class ExpensesService {
   async create(userId: string, createExpenseDto: CreateExpenseDto) {
     await Promise.all([
       this.ensureUserExists(userId),
-      this.ensureCategoryExists(createExpenseDto.categoryId),
+      this.ensureCategoryExists(userId, createExpenseDto.categoryId),
     ]);
 
-    const expense = await this.expenseModel.create({
+    return await this.expenseModel.create({
       userId: new Types.ObjectId(userId),
       categoryId: new Types.ObjectId(createExpenseDto.categoryId),
       amount: createExpenseDto.amount,
       expenseDate: createExpenseDto.expenseDate,
       description: createExpenseDto.description,
+      merchant: createExpenseDto.merchant,
     });
-
-    return this.findOne(userId, expense.id);
   }
 
   async findAll(
@@ -68,7 +67,10 @@ export class ExpensesService {
     await this.ensureUserExists(userId);
 
     const expense = await this.expenseModel
-      .findOne({ _id: expenseId, userId })
+      .findOne({
+        _id: expenseId,
+        userId: new Types.ObjectId(userId),
+      })
       .populate('categoryId')
       .lean()
       .exec();
@@ -87,22 +89,20 @@ export class ExpensesService {
     expenseId: string,
     updateExpenseDto: UpdateExpenseDto,
   ) {
-    await this.ensureUserExists(userId);
+    const foundUserId = await this.ensureUserExists(userId);
 
-    if (updateExpenseDto.categoryId) {
-      await this.ensureCategoryExists(updateExpenseDto.categoryId);
-    }
+    const foundCategoryId = updateExpenseDto.categoryId
+      ? await this.ensureCategoryExists(userId, updateExpenseDto.categoryId)
+      : null;
 
     const expense = await this.expenseModel
       .findOneAndUpdate(
-        { _id: expenseId, userId },
+        { _id: expenseId, userId: foundUserId },
         {
           ...updateExpenseDto,
-          ...(updateExpenseDto.categoryId
-            ? { categoryId: new Types.ObjectId(updateExpenseDto.categoryId) }
-            : {}),
+          ...(foundCategoryId ? { categoryId: foundCategoryId } : {}),
         },
-        { new: true, runValidators: true },
+        { returnDocument: 'after', runValidators: true },
       )
       .populate('categoryId')
       .lean()
@@ -118,10 +118,10 @@ export class ExpensesService {
   }
 
   async remove(userId: string, expenseId: string) {
-    await this.ensureUserExists(userId);
+    const foundId = await this.ensureUserExists(userId);
 
     const expense = await this.expenseModel
-      .findOneAndDelete({ _id: expenseId, userId })
+      .findOneAndDelete({ _id: expenseId, userId: foundId })
       .exec();
 
     if (!expense) {
@@ -133,16 +133,16 @@ export class ExpensesService {
 
   private buildFilter(userId: string, query: ListExpensesQueryDto) {
     const filter: {
-      userId: string;
-      categoryId?: string;
+      userId: Types.ObjectId;
+      categoryId?: Types.ObjectId;
       expenseDate?: {
         $gte?: Date;
         $lte?: Date;
       };
-    } = { userId };
+    } = { userId: new Types.ObjectId(userId) };
 
     if (query.categoryId) {
-      filter.categoryId = query.categoryId;
+      filter.categoryId = new Types.ObjectId(query.categoryId);
     }
 
     if (query.from || query.to) {
@@ -163,18 +163,27 @@ export class ExpensesService {
   }
 
   private async ensureUserExists(userId: string) {
-    const exists = await this.userModel.exists({ _id: userId });
+    const found = await this.userModel.exists({ _id: userId });
 
-    if (!exists) {
+    if (!found) {
       throw new NotFoundException(`User ${userId} not found.`);
     }
+
+    return found._id;
   }
 
-  private async ensureCategoryExists(categoryId: string) {
-    const exists = await this.expenseCategoryModel.exists({ _id: categoryId });
+  private async ensureCategoryExists(userId: string, categoryId: string) {
+    const found = await this.expenseCategoryModel.exists({
+      _id: categoryId,
+      userId: new Types.ObjectId(userId),
+    });
 
-    if (!exists) {
-      throw new NotFoundException(`Expense category ${categoryId} not found.`);
+    if (!found) {
+      throw new NotFoundException(
+        `Expense category ${categoryId} for user ${userId} not found.`,
+      );
     }
+
+    return found._id;
   }
 }

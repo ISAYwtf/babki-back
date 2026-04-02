@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Expense, ExpenseSchema } from '../expenses/schemas/expense.schema';
+import { User, UserSchema } from '../users/schemas/user.schema';
 import {
   ExpenseCategory,
   ExpenseCategorySchema,
@@ -13,6 +14,7 @@ import { ExpenseCategoriesService } from './expense-categories.service';
     MongooseModule.forFeature([
       { name: ExpenseCategory.name, schema: ExpenseCategorySchema },
       { name: Expense.name, schema: ExpenseSchema },
+      { name: User.name, schema: UserSchema },
     ]),
   ],
   controllers: [ExpenseCategoriesController],

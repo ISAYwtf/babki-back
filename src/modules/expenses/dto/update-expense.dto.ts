@@ -28,4 +28,9 @@ export class UpdateExpenseDto {
   @IsString()
   @MaxLength(1000)
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  merchant?: string;
 }

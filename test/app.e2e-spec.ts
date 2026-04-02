@@ -40,6 +40,7 @@ type BalanceRecord = {
 
 type CategoryRecord = {
   _id: string;
+  userId: string;
   name: string;
   description?: string;
   color?: string;
@@ -138,12 +139,14 @@ class ExpenseCategoriesServiceStub {
   constructor(private readonly store: FinanceStore) {}
 
   create(
-    payload: Omit<CategoryRecord, '_id' | 'isArchived'> & {
+    userId: string,
+    payload: Omit<CategoryRecord, '_id' | 'userId' | 'isArchived'> & {
       isArchived?: boolean;
     },
   ) {
     const category = {
       _id: this.store.nextId(),
+      userId,
       isArchived: payload.isArchived ?? false,
       ...payload,
     };
@@ -151,25 +154,27 @@ class ExpenseCategoriesServiceStub {
     return category;
   }
 
-  findAll() {
-    return [...this.store.categories];
+  findAll(userId: string) {
+    return this.store.categories.filter((item) => item.userId === userId);
   }
 
-  findOne(categoryId: string) {
-    return this.store.categories.find((item) => item._id === categoryId);
+  findOne(userId: string, categoryId: string) {
+    return this.store.categories.find(
+      (item) => item._id === categoryId && item.userId === userId,
+    );
   }
 
-  update(categoryId: string, payload: Partial<CategoryRecord>) {
+  update(userId: string, categoryId: string, payload: Partial<CategoryRecord>) {
     const category = this.store.categories.find(
-      (item) => item._id === categoryId,
+      (item) => item._id === categoryId && item.userId === userId,
     );
     Object.assign(category!, payload);
     return category;
   }
 
-  remove(categoryId: string) {
+  remove(userId: string, categoryId: string) {
     const index = this.store.categories.findIndex(
-      (item) => item._id === categoryId,
+      (item) => item._id === categoryId && item.userId === userId,
     );
 
     if (index >= 0) {
@@ -227,7 +232,8 @@ class ExpensesServiceStub {
 
   private attachCategory(expense: ExpenseRecord) {
     const category = this.store.categories.find(
-      (item) => item._id === expense.categoryId,
+      (item) =>
+        item._id === expense.categoryId && item.userId === expense.userId,
     );
     return { ...expense, categoryId: category };
   }
@@ -456,11 +462,11 @@ describe('Finance API integration flow', () => {
         metatype: CreateExpenseCategoryDto,
       },
     );
-    const category = categoriesController.create(categoryDto);
+    const category = categoriesController.create(userId, categoryDto);
     const categoryId = category._id;
 
-    expect(categoriesController.findAll()).toHaveLength(1);
-    expect(categoriesController.findOne(categoryId)).toMatchObject({
+    expect(categoriesController.findAll(userId)).toHaveLength(1);
+    expect(categoriesController.findOne(userId, categoryId)).toMatchObject({
       _id: categoryId,
     });
 

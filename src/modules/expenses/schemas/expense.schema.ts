@@ -21,6 +21,9 @@ export class Expense {
 
   @Prop({ trim: true })
   description?: string;
+
+  @Prop({ trim: true })
+  merchant?: string;
 }
 
 export const ExpenseSchema = SchemaFactory.createForClass(Expense);

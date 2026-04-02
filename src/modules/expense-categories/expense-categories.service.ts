@@ -4,8 +4,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Expense, ExpenseDocument } from '../expenses/schemas/expense.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateExpenseCategoryDto } from './dto/create-expense-category.dto';
 import { UpdateExpenseCategoryDto } from './dto/update-expense-category.dto';
 import {
@@ -20,13 +21,20 @@ export class ExpenseCategoriesService {
     private readonly expenseCategoryModel: Model<ExpenseCategoryDocument>,
     @InjectModel(Expense.name)
     private readonly expenseModel: Model<ExpenseDocument>,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
   ) {}
 
-  async create(createExpenseCategoryDto: CreateExpenseCategoryDto) {
+  async create(
+    userId: string,
+    createExpenseCategoryDto: CreateExpenseCategoryDto,
+  ) {
+    await this.ensureUserExists(userId);
+
     try {
-      const category = await this.expenseCategoryModel.create(
-        createExpenseCategoryDto,
-      );
+      const category = await this.expenseCategoryModel.create({
+        ...createExpenseCategoryDto,
+        userId: new Types.ObjectId(userId),
+      });
 
       return category.toObject();
     } catch (error) {
@@ -34,39 +42,55 @@ export class ExpenseCategoriesService {
     }
   }
 
-  async findAll() {
-    return this.expenseCategoryModel.find().sort({ name: 1 }).lean().exec();
+  async findAll(userId: string) {
+    await this.ensureUserExists(userId);
+
+    return this.expenseCategoryModel
+      .find({ userId: new Types.ObjectId(userId) })
+      .sort({ name: 1 })
+      .lean()
+      .exec();
   }
 
-  async findOne(categoryId: string) {
+  async findOne(userId: string, categoryId: string) {
     const category = await this.expenseCategoryModel
-      .findById(categoryId)
+      .findOne({
+        _id: new Types.ObjectId(categoryId),
+        userId: new Types.ObjectId(userId),
+      })
       .lean()
       .exec();
 
     if (!category) {
-      throw new NotFoundException(`Expense category ${categoryId} not found.`);
+      throw new NotFoundException(
+        `Expense category ${categoryId} for user ${userId} not found.`,
+      );
     }
 
     return category;
   }
 
   async update(
+    userId: string,
     categoryId: string,
     updateExpenseCategoryDto: UpdateExpenseCategoryDto,
   ) {
     try {
       const category = await this.expenseCategoryModel
-        .findByIdAndUpdate(categoryId, updateExpenseCategoryDto, {
-          new: true,
-          runValidators: true,
-        })
+        .findOneAndUpdate(
+          { _id: categoryId, userId: new Types.ObjectId(userId) },
+          updateExpenseCategoryDto,
+          {
+            returnDocument: 'after',
+            runValidators: true,
+          },
+        )
         .lean()
         .exec();
 
       if (!category) {
         throw new NotFoundException(
-          `Expense category ${categoryId} not found.`,
+          `Expense category ${categoryId} for user ${userId} not found.`,
         );
       }
 
@@ -76,11 +100,12 @@ export class ExpenseCategoriesService {
     }
   }
 
-  async remove(categoryId: string) {
-    await this.findOne(categoryId);
+  async remove(userId: string, categoryId: string) {
+    const foundCategory = await this.findOne(userId, categoryId);
 
     const linkedExpenses = await this.expenseModel.countDocuments({
-      categoryId,
+      userId: foundCategory.userId,
+      categoryId: foundCategory._id,
     });
 
     if (linkedExpenses) {
@@ -89,7 +114,10 @@ export class ExpenseCategoriesService {
       );
     }
 
-    await this.expenseCategoryModel.findByIdAndDelete(categoryId).exec();
+    await this.expenseCategoryModel
+      .deleteOne({ _id: foundCategory._id, userId: foundCategory.userId })
+      .lean()
+      .exec();
   }
 
   private handleDuplicateName(error: unknown): never {
@@ -100,5 +128,13 @@ export class ExpenseCategoriesService {
     }
 
     throw error;
+  }
+
+  private async ensureUserExists(userId: string) {
+    const exists = await this.userModel.exists({ _id: userId });
+
+    if (!exists) {
+      throw new NotFoundException(`User ${userId} not found.`);
+    }
   }
 }
