@@ -76,7 +76,7 @@ export class UsersService {
               ? { email: updateUserDto.email.toLowerCase() }
               : {}),
           },
-          { new: true, runValidators: true },
+          { returnDocument: 'after', runValidators: true },
         )
         .lean()
         .exec();

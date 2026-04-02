@@ -105,7 +105,7 @@ export class DebtsService {
 
     return this.debtModel
       .findOneAndUpdate({ _id: debtId, userId }, updateDebtDto, {
-        new: true,
+        returnDocument: 'after',
         runValidators: true,
       })
       .lean()

@@ -44,7 +44,7 @@ export class BalancesService {
             ...upsertBalanceDto,
           },
           {
-            new: true,
+            returnDocument: 'after',
             upsert: true,
             runValidators: true,
             setDefaultsOnInsert: true,
