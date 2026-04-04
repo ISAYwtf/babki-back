@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import configuration from './config/configuration';
 import { BalancesModule } from './modules/balances/balances.module';
+import { DebtTransactionsModule } from './modules/debt-transactions/debt-transactions.module';
 import { DebtsModule } from './modules/debts/debts.module';
 import { ExpenseCategoriesModule } from './modules/expense-categories/expense-categories.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
@@ -28,6 +29,7 @@ import { UsersModule } from './modules/users/users.module';
     ExpenseCategoriesModule,
     ExpensesModule,
     DebtsModule,
+    DebtTransactionsModule,
     ReportsModule,
   ],
   controllers: [AppController],

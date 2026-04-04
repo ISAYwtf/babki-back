@@ -14,7 +14,7 @@ export class UpdateDebtDto {
   @IsOptional()
   @IsString()
   @MaxLength(150)
-  name?: string;
+  debtor?: string;
 
   @IsOptional()
   @Type(() => Number)
@@ -31,7 +31,7 @@ export class UpdateDebtDto {
   @IsOptional()
   @IsString()
   @MaxLength(150)
-  creditor?: string;
+  description?: string;
 
   @IsOptional()
   @IsDateString()

@@ -6,7 +6,10 @@ import { BalancesController } from '../src/modules/balances/balances.controller'
 import { BalancesService } from '../src/modules/balances/balances.service';
 import { CreateDebtDto } from '../src/modules/debts/dto/create-debt.dto';
 import { DebtsController } from '../src/modules/debts/debts.controller';
+import { RepayDebtDto } from '../src/modules/debts/dto/repay-debt.dto';
 import { DebtsService } from '../src/modules/debts/debts.service';
+import { DebtTransactionsController } from '../src/modules/debt-transactions/debt-transactions.controller';
+import { DebtTransactionsService } from '../src/modules/debt-transactions/debt-transactions.service';
 import { CreateExpenseCategoryDto } from '../src/modules/expense-categories/dto/create-expense-category.dto';
 import { ExpenseCategoriesController } from '../src/modules/expense-categories/expense-categories.controller';
 import { ExpenseCategoriesService } from '../src/modules/expense-categories/expense-categories.service';
@@ -59,12 +62,21 @@ type ExpenseRecord = {
 type DebtRecord = {
   _id: string;
   userId: string;
-  name: string;
+  debtor: string;
   principalAmount: number;
   remainingAmount: number;
-  creditor?: string;
+  description?: string;
   dueDate?: string;
   status: 'active' | 'closed';
+};
+
+type DebtTransactionRecord = {
+  _id: string;
+  userId: string;
+  debtId: string;
+  repaymentAmount: number;
+  transactionDate: string;
+  description?: string;
 };
 
 function createObjectId(sequence: number) {
@@ -78,6 +90,7 @@ class FinanceStore {
   readonly categories: CategoryRecord[] = [];
   readonly expenses: ExpenseRecord[] = [];
   readonly debts: DebtRecord[] = [];
+  readonly debtTransactions: DebtTransactionRecord[] = [];
 
   nextId() {
     return createObjectId(this.sequence++);
@@ -282,6 +295,42 @@ class DebtsServiceStub {
     return debt;
   }
 
+  repay(
+    userId: string,
+    debtId: string,
+    payload: {
+      repaymentDate: string;
+      repaymentAmount: number;
+      description?: string;
+    },
+  ) {
+    const debt = this.store.debts.find(
+      (item) => item.userId === userId && item._id === debtId,
+    );
+
+    const transaction = {
+      _id: this.store.nextId(),
+      userId,
+      debtId,
+      transactionDate: payload.repaymentDate,
+      repaymentAmount: payload.repaymentAmount,
+      description: payload.description,
+    };
+
+    this.store.debtTransactions.push(transaction);
+    debt!.remainingAmount = Number(
+      (debt!.remainingAmount - payload.repaymentAmount).toFixed(2),
+    );
+    if (debt!.remainingAmount === 0) {
+      debt!.status = 'closed';
+    }
+
+    return {
+      debt,
+      transaction,
+    };
+  }
+
   remove(userId: string, debtId: string) {
     const index = this.store.debts.findIndex(
       (item) => item.userId === userId && item._id === debtId,
@@ -289,6 +338,75 @@ class DebtsServiceStub {
 
     if (index >= 0) {
       this.store.debts.splice(index, 1);
+    }
+  }
+}
+
+class DebtTransactionsServiceStub {
+  constructor(private readonly store: FinanceStore) {}
+
+  create(
+    userId: string,
+    debtId: string,
+    payload: Omit<DebtTransactionRecord, '_id' | 'userId' | 'debtId'>,
+  ) {
+    const transaction = {
+      _id: this.store.nextId(),
+      userId,
+      debtId,
+      ...payload,
+    };
+    this.store.debtTransactions.push(transaction);
+    return transaction;
+  }
+
+  findAll(userId: string, debtId: string) {
+    const items = this.store.debtTransactions.filter(
+      (item) => item.userId === userId && item.debtId === debtId,
+    );
+    return {
+      items,
+      total: items.length,
+      page: 1,
+      limit: 20,
+    };
+  }
+
+  findOne(userId: string, debtId: string, debtTransactionId: string) {
+    return this.store.debtTransactions.find(
+      (item) =>
+        item.userId === userId &&
+        item.debtId === debtId &&
+        item._id === debtTransactionId,
+    );
+  }
+
+  update(
+    userId: string,
+    debtId: string,
+    debtTransactionId: string,
+    payload: Partial<DebtTransactionRecord>,
+  ) {
+    const transaction = this.store.debtTransactions.find(
+      (item) =>
+        item.userId === userId &&
+        item.debtId === debtId &&
+        item._id === debtTransactionId,
+    );
+    Object.assign(transaction!, payload);
+    return transaction;
+  }
+
+  remove(userId: string, debtId: string, debtTransactionId: string) {
+    const index = this.store.debtTransactions.findIndex(
+      (item) =>
+        item.userId === userId &&
+        item.debtId === debtId &&
+        item._id === debtTransactionId,
+    );
+
+    if (index >= 0) {
+      this.store.debtTransactions.splice(index, 1);
     }
   }
 }
@@ -364,6 +482,7 @@ describe('Finance API integration flow', () => {
   let categoriesController: ExpenseCategoriesController;
   let expensesController: ExpensesController;
   let debtsController: DebtsController;
+  let debtTransactionsController: DebtTransactionsController;
   let reportsController: ReportsController;
   let validationPipe: ValidationPipe;
   let objectIdPipe: ParseObjectIdPipe;
@@ -377,6 +496,7 @@ describe('Finance API integration flow', () => {
         ExpenseCategoriesController,
         ExpensesController,
         DebtsController,
+        DebtTransactionsController,
         ReportsController,
       ],
       providers: [
@@ -388,6 +508,10 @@ describe('Finance API integration flow', () => {
         },
         { provide: ExpensesService, useValue: new ExpensesServiceStub(store) },
         { provide: DebtsService, useValue: new DebtsServiceStub(store) },
+        {
+          provide: DebtTransactionsService,
+          useValue: new DebtTransactionsServiceStub(store),
+        },
         { provide: ReportsService, useValue: new ReportsServiceStub(store) },
       ],
     }).compile();
@@ -397,6 +521,7 @@ describe('Finance API integration flow', () => {
     categoriesController = moduleFixture.get(ExpenseCategoriesController);
     expensesController = moduleFixture.get(ExpensesController);
     debtsController = moduleFixture.get(DebtsController);
+    debtTransactionsController = moduleFixture.get(DebtTransactionsController);
     reportsController = moduleFixture.get(ReportsController);
 
     validationPipe = new ValidationPipe({
@@ -493,10 +618,10 @@ describe('Finance API integration flow', () => {
 
     const debtDto = await validationPipe.transform(
       {
-        name: 'Credit card',
+        debtor: 'Credit card',
         principalAmount: 1000,
         remainingAmount: 400,
-        creditor: 'Bank',
+        description: 'Bank credit card debt',
         dueDate: '2026-04-15',
         status: 'active',
       },
@@ -514,6 +639,66 @@ describe('Finance API integration flow', () => {
     });
     expect(debtsController.findOne(userId, debt._id)).toBeDefined();
 
+    const partialRepaymentDto = await validationPipe.transform(
+      {
+        repaymentDate: '2026-03-20',
+        repaymentAmount: 100,
+        description: 'Debt repayment via debt API',
+      },
+      {
+        type: 'body',
+        metatype: RepayDebtDto,
+      },
+    );
+    const partialRepayment = debtsController.repay(
+      userId,
+      debt._id,
+      partialRepaymentDto,
+    );
+    expect(partialRepayment.transaction).toMatchObject({
+      repaymentAmount: 100,
+      transactionDate: '2026-03-20',
+    });
+    expect(partialRepayment.debt).toMatchObject({
+      remainingAmount: 300,
+      status: 'active',
+    });
+    expect(
+      debtTransactionsController.findOne(
+        userId,
+        debt._id,
+        partialRepayment.transaction._id,
+      ),
+    ).toMatchObject({
+      repaymentAmount: 100,
+      transactionDate: '2026-03-20',
+    });
+
+    const fullRepaymentDto = await validationPipe.transform(
+      {
+        repaymentDate: '2026-03-25',
+        repaymentAmount: 300,
+        description: 'Final repayment',
+      },
+      {
+        type: 'body',
+        metatype: RepayDebtDto,
+      },
+    );
+    const fullRepayment = debtsController.repay(userId, debt._id, fullRepaymentDto);
+    expect(fullRepayment.debt).toMatchObject({
+      remainingAmount: 0,
+      status: 'closed',
+    });
+    expect(
+      debtTransactionsController.findAll(userId, debt._id, {
+        page: 1,
+        limit: 20,
+      }),
+    ).toMatchObject({
+      total: 2,
+    });
+
     const monthSummaryQuery = await validationPipe.transform(
       { year: 2026, month: 3 },
       {
@@ -528,7 +713,7 @@ describe('Finance API integration flow', () => {
 
     expect(monthSummary.totalExpenses).toBe(125.5);
     expect(monthSummary.expenseCount).toBe(1);
-    expect(monthSummary.totalActiveDebtRemaining).toBe(400);
+    expect(monthSummary.totalActiveDebtRemaining).toBe(0);
 
     const yearSummaryQuery = await validationPipe.transform(
       { year: 2026 },
@@ -543,7 +728,7 @@ describe('Finance API integration flow', () => {
     );
 
     expect(yearSummary.totalExpenses).toBe(125.5);
-    expect(yearSummary.activeDebtCount).toBe(1);
+    expect(yearSummary.activeDebtCount).toBe(0);
   });
 
   it('validates DTO payloads before controller execution', async () => {

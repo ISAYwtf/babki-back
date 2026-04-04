@@ -9,7 +9,8 @@ The application currently contains these functional areas:
 - `users`: create, list, search, update, and delete users
 - `balances`: store one balance snapshot per user
 - `expenses`: track dated expenses with categories and descriptions
-- `debts`: track debt principal, remaining amount, creditor, due date, and status
+- `debts`: track borrowers, debt principal, remaining amount, optional description, due date, and status
+- `debt-transactions`: record debt repayment history for each debt
 - `expense-categories`: manage shared categories for expenses
 - `reports`: build monthly and yearly summary responses
 
@@ -309,6 +310,9 @@ Representative routes from the checked-in controllers:
 - `POST /users/:userId/expenses`
 - `GET /users/:userId/debts`
 - `POST /users/:userId/debts`
+- `POST /users/:userId/debts/:debtId/repayments`
+- `GET /users/:userId/debts/:debtId/transactions`
+- `GET /users/:userId/debts/:debtId/transactions/:debtTransactionId`
 - `GET /expense-categories`
 - `POST /expense-categories`
 - `GET /users/:userId/summaries/month`

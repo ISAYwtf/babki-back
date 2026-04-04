@@ -11,6 +11,7 @@ import {
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { CreateDebtDto } from './dto/create-debt.dto';
 import { ListDebtsQueryDto } from './dto/list-debts-query.dto';
+import { RepayDebtDto } from './dto/repay-debt.dto';
 import { UpdateDebtDto } from './dto/update-debt.dto';
 import { DebtsService } from './debts.service';
 
@@ -49,6 +50,15 @@ export class DebtsController {
     @Body() updateDebtDto: UpdateDebtDto,
   ) {
     return this.debtsService.update(userId, debtId, updateDebtDto);
+  }
+
+  @Post(':debtId/repayments')
+  repay(
+    @Param('userId', ParseObjectIdPipe) userId: string,
+    @Param('debtId', ParseObjectIdPipe) debtId: string,
+    @Body() repayDebtDto: RepayDebtDto,
+  ) {
+    return this.debtsService.repay(userId, debtId, repayDebtDto);
   }
 
   @Delete(':debtId')

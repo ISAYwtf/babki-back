@@ -12,7 +12,7 @@ export class Debt {
   userId: Types.ObjectId;
 
   @Prop({ required: true, trim: true })
-  name: string;
+  debtor: string;
 
   @Prop({ required: true, min: 0.01 })
   principalAmount: number;
@@ -21,7 +21,7 @@ export class Debt {
   remainingAmount: number;
 
   @Prop({ trim: true })
-  creditor?: string;
+  description?: string;
 
   @Prop()
   dueDate?: Date;

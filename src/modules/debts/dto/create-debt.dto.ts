@@ -13,7 +13,7 @@ import { debtStatuses } from '../schemas/debt.schema';
 export class CreateDebtDto {
   @IsString()
   @MaxLength(150)
-  name: string;
+  debtor: string;
 
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
@@ -28,7 +28,7 @@ export class CreateDebtDto {
   @IsOptional()
   @IsString()
   @MaxLength(150)
-  creditor?: string;
+  description?: string;
 
   @IsOptional()
   @IsDateString()
