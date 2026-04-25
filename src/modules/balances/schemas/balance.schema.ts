@@ -6,7 +6,7 @@ export type BalanceDocument = HydratedDocument<Balance>;
 
 @Schema({ timestamps: true })
 export class Balance {
-  @Prop({ required: true, type: Types.ObjectId, ref: User.name, unique: true })
+  @Prop({ required: true, type: Types.ObjectId, ref: User.name })
   userId: Types.ObjectId;
 
   @Prop({ required: true, min: 0 })
@@ -21,4 +21,5 @@ export class Balance {
 
 export const BalanceSchema = SchemaFactory.createForClass(Balance);
 
-BalanceSchema.index({ userId: 1 }, { unique: true });
+BalanceSchema.index({ userId: 1, asOfDate: -1 });
+BalanceSchema.index({ userId: 1, asOfDate: 1 }, { unique: true });

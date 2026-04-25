@@ -9,7 +9,7 @@ services:
     env_file:
       - .env
     environment:
-      NODE_ENV: production
+      NODE_ENV: local
       PORT: 5001
       SECRETS_FILE_PATH: config/secrets/docker-compose.json
     ports:

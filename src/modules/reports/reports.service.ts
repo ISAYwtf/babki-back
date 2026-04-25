@@ -49,7 +49,14 @@ export class ReportsService {
     const objectUserId = new Types.ObjectId(userId);
 
     const [balance, debtAggregate, expenseAggregate] = await Promise.all([
-      this.balanceModel.findOne({ userId: objectUserId }).lean().exec(),
+      this.balanceModel
+        .findOne({
+          userId: objectUserId,
+          asOfDate: { $lte: to },
+        })
+        .sort({ asOfDate: -1, _id: -1 })
+        .lean()
+        .exec(),
       this.debtModel.aggregate<{
         totalActiveDebtRemaining: number;
         activeDebtCount: number;

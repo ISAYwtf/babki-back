@@ -11,6 +11,13 @@ async function bootstrap() {
   const port = configService.get<number>('app.port', 3000);
   const apiPrefix = configService.get<string>('app.apiPrefix', 'api/v1');
 
+  if (process.env.NODE_ENV !== 'production') {
+    app.enableCors({
+      origin: true,
+      credentials: true,
+    });
+  }
+
   app.setGlobalPrefix(apiPrefix);
   app.useGlobalPipes(
     new ValidationPipe({

@@ -1,9 +1,10 @@
 import { ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ParseObjectIdPipe } from '../src/common/pipes/parse-object-id.pipe';
-import { UpsertBalanceDto } from '../src/modules/balances/dto/upsert-balance.dto';
 import { BalancesController } from '../src/modules/balances/balances.controller';
 import { BalancesService } from '../src/modules/balances/balances.service';
+import { CreateBalanceDto } from '../src/modules/balances/dto/create-balance.dto';
+import { FindBalanceQueryDto } from '../src/modules/balances/dto/find-balance-query.dto';
 import { CreateDebtDto } from '../src/modules/debts/dto/create-debt.dto';
 import { DebtsController } from '../src/modules/debts/debts.controller';
 import { RepayDebtDto } from '../src/modules/debts/dto/repay-debt.dto';
@@ -83,10 +84,12 @@ function createObjectId(sequence: number) {
   return sequence.toString(16).padStart(24, '0');
 }
 
+type ClassType<T> = abstract new (...args: never[]) => T;
+
 class FinanceStore {
   private sequence = 1;
   readonly users: UserRecord[] = [];
-  readonly balances = new Map<string, BalanceRecord>();
+  readonly balances: BalanceRecord[] = [];
   readonly categories: CategoryRecord[] = [];
   readonly expenses: ExpenseRecord[] = [];
   readonly debts: DebtRecord[] = [];
@@ -137,13 +140,32 @@ class UsersServiceStub {
 class BalancesServiceStub {
   constructor(private readonly store: FinanceStore) {}
 
-  findByUserId(userId: string) {
-    return this.store.balances.get(userId);
+  findByUserId(userId: string, asOfDate: string) {
+    const requestedDate = new Date(asOfDate);
+
+    return this.store.balances
+      .filter(
+        (balance) =>
+          balance.userId === userId &&
+          new Date(balance.asOfDate) <= requestedDate,
+      )
+      .sort((left, right) => right.asOfDate.localeCompare(left.asOfDate))[0];
   }
 
-  upsert(userId: string, payload: Omit<BalanceRecord, 'userId'>) {
+  addBalance(userId: string, payload: Omit<BalanceRecord, 'userId'>) {
+    const existingBalance = this.store.balances.find(
+      (balance) =>
+        balance.userId === userId && balance.asOfDate === payload.asOfDate,
+    );
+
+    if (existingBalance) {
+      throw new Error(
+        `Balance for user ${userId} on ${payload.asOfDate} already exists.`,
+      );
+    }
+
     const balance = { userId, ...payload };
-    this.store.balances.set(userId, balance);
+    this.store.balances.push(balance);
     return balance;
   }
 }
@@ -423,7 +445,15 @@ class ReportsServiceStub {
   }
 
   private buildSummary(userId: string, year: number, month?: number) {
-    const balance = this.store.balances.get(userId);
+    const periodEnd = month
+      ? new Date(Date.UTC(year, month, 0, 23, 59, 59, 999))
+      : new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+    const balance = this.store.balances
+      .filter(
+        (item) =>
+          item.userId === userId && new Date(item.asOfDate) <= periodEnd,
+      )
+      .sort((left, right) => right.asOfDate.localeCompare(left.asOfDate))[0];
     const expenses = this.store.expenses.filter((item) => {
       const expenseDate = new Date(item.expenseDate);
       const matchesYear = expenseDate.getUTCFullYear() === year;
@@ -487,6 +517,16 @@ describe('Finance API integration flow', () => {
   let validationPipe: ValidationPipe;
   let objectIdPipe: ParseObjectIdPipe;
 
+  const transformValue = async <T>(
+    value: unknown,
+    metatype: ClassType<T>,
+    type: 'body' | 'query',
+  ) =>
+    (await validationPipe.transform(value, {
+      type,
+      metatype,
+    })) as T;
+
   beforeEach(async () => {
     const store = new FinanceStore();
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -534,7 +574,7 @@ describe('Finance API integration flow', () => {
   });
 
   it('supports the main finance management flow', async () => {
-    const createUserDto = await validationPipe.transform(
+    const createUserDto = await transformValue(
       {
         firstName: 'Anna',
         lastName: 'Ivanova',
@@ -543,12 +583,10 @@ describe('Finance API integration flow', () => {
         birthDate: '1995-01-12',
         notes: 'Primary test user',
       },
-      {
-        type: 'body',
-        metatype: CreateUserDto,
-      },
+      CreateUserDto,
+      'body',
     );
-    const user = usersController.create(createUserDto);
+    const user = usersController.create(createUserDto) as UserRecord;
     const userId = user._id;
 
     expect(objectIdPipe.transform(userId)).toBe(userId);
@@ -559,35 +597,53 @@ describe('Finance API integration flow', () => {
     });
     expect(usersController.findOne(userId)).toMatchObject({ _id: userId });
 
-    const balanceDto = await validationPipe.transform(
+    const balanceDto = await transformValue(
       {
         currentAccountAmount: 1200,
         savingsAmount: 4500,
         asOfDate: '2026-03-01',
       },
+      CreateBalanceDto,
+      'body',
+    );
+    await balancesController.add(userId, balanceDto);
+
+    const balanceQuery = await transformValue(
+      { asOfDate: '2026-03-15' },
+      FindBalanceQueryDto,
+      'query',
+    );
+    expect(balancesController.findByUserId(userId, balanceQuery)).toMatchObject(
       {
-        type: 'body',
-        metatype: UpsertBalanceDto,
+        currentAccountAmount: 1200,
+        savingsAmount: 4500,
       },
     );
-    balancesController.upsert(userId, balanceDto);
-    expect(balancesController.findByUserId(userId)).toMatchObject({
-      currentAccountAmount: 1200,
-      savingsAmount: 4500,
-    });
 
-    const categoryDto = await validationPipe.transform(
+    const earlierBalanceDto = await transformValue(
+      {
+        currentAccountAmount: 900,
+        savingsAmount: 3200,
+        asOfDate: '2026-02-01',
+      },
+      CreateBalanceDto,
+      'body',
+    );
+    await balancesController.add(userId, earlierBalanceDto);
+
+    const categoryDto = await transformValue(
       {
         name: 'Food',
         description: 'Groceries and cafes',
         color: '#22AA66',
       },
-      {
-        type: 'body',
-        metatype: CreateExpenseCategoryDto,
-      },
+      CreateExpenseCategoryDto,
+      'body',
     );
-    const category = categoriesController.create(userId, categoryDto);
+    const category = categoriesController.create(
+      userId,
+      categoryDto,
+    ) as CategoryRecord;
     const categoryId = category._id;
 
     expect(categoriesController.findAll(userId)).toHaveLength(1);
@@ -595,19 +651,20 @@ describe('Finance API integration flow', () => {
       _id: categoryId,
     });
 
-    const expenseDto = await validationPipe.transform(
+    const expenseDto = await transformValue(
       {
         categoryId,
         amount: 125.5,
         expenseDate: '2026-03-10',
         description: 'Weekly groceries',
       },
-      {
-        type: 'body',
-        metatype: CreateExpenseDto,
-      },
+      CreateExpenseDto,
+      'body',
     );
-    const expense = expensesController.create(userId, expenseDto);
+    const expense = expensesController.create(
+      userId,
+      expenseDto,
+    ) as ExpenseRecord;
 
     expect(
       expensesController.findAll(userId, { page: 1, limit: 20 }),
@@ -616,7 +673,7 @@ describe('Finance API integration flow', () => {
     });
     expect(expensesController.findOne(userId, expense._id)).toBeDefined();
 
-    const debtDto = await validationPipe.transform(
+    const debtDto = await transformValue(
       {
         debtor: 'Credit card',
         principalAmount: 1000,
@@ -625,12 +682,10 @@ describe('Finance API integration flow', () => {
         dueDate: '2026-04-15',
         status: 'active',
       },
-      {
-        type: 'body',
-        metatype: CreateDebtDto,
-      },
+      CreateDebtDto,
+      'body',
     );
-    const debt = debtsController.create(userId, debtDto);
+    const debt = debtsController.create(userId, debtDto) as DebtRecord;
 
     expect(
       debtsController.findAll(userId, { page: 1, limit: 20 }),
@@ -639,22 +694,23 @@ describe('Finance API integration flow', () => {
     });
     expect(debtsController.findOne(userId, debt._id)).toBeDefined();
 
-    const partialRepaymentDto = await validationPipe.transform(
+    const partialRepaymentDto = await transformValue(
       {
         repaymentDate: '2026-03-20',
         repaymentAmount: 100,
         description: 'Debt repayment via debt API',
       },
-      {
-        type: 'body',
-        metatype: RepayDebtDto,
-      },
+      RepayDebtDto,
+      'body',
     );
     const partialRepayment = debtsController.repay(
       userId,
       debt._id,
       partialRepaymentDto,
-    );
+    ) as {
+      debt: DebtRecord;
+      transaction: DebtTransactionRecord;
+    };
     expect(partialRepayment.transaction).toMatchObject({
       repaymentAmount: 100,
       transactionDate: '2026-03-20',
@@ -674,18 +730,23 @@ describe('Finance API integration flow', () => {
       transactionDate: '2026-03-20',
     });
 
-    const fullRepaymentDto = await validationPipe.transform(
+    const fullRepaymentDto = await transformValue(
       {
         repaymentDate: '2026-03-25',
         repaymentAmount: 300,
         description: 'Final repayment',
       },
-      {
-        type: 'body',
-        metatype: RepayDebtDto,
-      },
+      RepayDebtDto,
+      'body',
     );
-    const fullRepayment = debtsController.repay(userId, debt._id, fullRepaymentDto);
+    const fullRepayment = debtsController.repay(
+      userId,
+      debt._id,
+      fullRepaymentDto,
+    ) as {
+      debt: DebtRecord;
+      transaction: DebtTransactionRecord;
+    };
     expect(fullRepayment.debt).toMatchObject({
       remainingAmount: 0,
       status: 'closed',
@@ -699,36 +760,33 @@ describe('Finance API integration flow', () => {
       total: 2,
     });
 
-    const monthSummaryQuery = await validationPipe.transform(
+    const monthSummaryQuery = await transformValue(
       { year: 2026, month: 3 },
-      {
-        type: 'query',
-        metatype: MonthSummaryQueryDto,
-      },
+      MonthSummaryQueryDto,
+      'query',
     );
     const monthSummary = reportsController.getMonthlySummary(
       userId,
       monthSummaryQuery,
-    );
+    ) as Awaited<ReturnType<ReportsController['getMonthlySummary']>>;
 
     expect(monthSummary.totalExpenses).toBe(125.5);
     expect(monthSummary.expenseCount).toBe(1);
     expect(monthSummary.totalActiveDebtRemaining).toBe(0);
 
-    const yearSummaryQuery = await validationPipe.transform(
+    const yearSummaryQuery = await transformValue(
       { year: 2026 },
-      {
-        type: 'query',
-        metatype: YearSummaryQueryDto,
-      },
+      YearSummaryQueryDto,
+      'query',
     );
     const yearSummary = reportsController.getYearlySummary(
       userId,
       yearSummaryQuery,
-    );
+    ) as Awaited<ReturnType<ReportsController['getYearlySummary']>>;
 
     expect(yearSummary.totalExpenses).toBe(125.5);
     expect(yearSummary.activeDebtCount).toBe(0);
+    expect(yearSummary.currentAccountAmount).toBe(1200);
   });
 
   it('validates DTO payloads before controller execution', async () => {
@@ -746,6 +804,16 @@ describe('Finance API integration flow', () => {
         },
       ),
     ).rejects.toThrow();
+
+    await expect(
+      validationPipe.transform(
+        {},
+        {
+          type: 'query',
+          metatype: FindBalanceQueryDto,
+        },
+      ),
+    ).resolves.toMatchObject({});
 
     expect(() => objectIdPipe.transform('not-a-valid-object-id')).toThrow();
   });
