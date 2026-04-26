@@ -32,7 +32,7 @@ export class BalancesService {
       .exec();
 
     if (!balance) {
-      throw new NotFoundException(`Balance for user ${userId} not found.`);
+      return null;
     }
 
     return balance;
