@@ -87,7 +87,7 @@ export class ReportsService {
           },
           {
             $group: {
-              _id: '$categoryId',
+              _id: '$category',
               totalAmount: { $sum: '$amount' },
               expenseCount: { $sum: 1 },
             },

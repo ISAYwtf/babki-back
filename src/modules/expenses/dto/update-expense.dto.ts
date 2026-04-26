@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsDateString,
   IsMongoId,
   IsNumber,
@@ -7,7 +8,9 @@ import {
   IsString,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { ExpenseItemDto } from './expense-item.dto';
 
 export class UpdateExpenseDto {
   @IsOptional()
@@ -33,4 +36,10 @@ export class UpdateExpenseDto {
   @IsString()
   @MaxLength(255)
   merchant?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ExpenseItemDto)
+  items?: ExpenseItemDto[];
 }

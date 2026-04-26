@@ -51,13 +51,25 @@ type CategoryRecord = {
   isArchived: boolean;
 };
 
-type ExpenseRecord = {
+type ExpenseItemRecord = {
+  name: string;
+  price: number;
+  quantity: number;
+};
+
+type StoredExpenseRecord = {
   _id: string;
   userId: string;
-  categoryId: string;
+  category: string;
   amount: number;
   expenseDate: string;
   description?: string;
+  merchant?: string;
+  items: ExpenseItemRecord[];
+};
+
+type ExpenseResponseRecord = Omit<StoredExpenseRecord, 'category'> & {
+  category?: CategoryRecord;
 };
 
 type DebtRecord = {
@@ -91,7 +103,7 @@ class FinanceStore {
   readonly users: UserRecord[] = [];
   readonly balances: BalanceRecord[] = [];
   readonly categories: CategoryRecord[] = [];
-  readonly expenses: ExpenseRecord[] = [];
+  readonly expenses: StoredExpenseRecord[] = [];
   readonly debts: DebtRecord[] = [];
   readonly debtTransactions: DebtTransactionRecord[] = [];
 
@@ -221,15 +233,38 @@ class ExpenseCategoriesServiceStub {
 class ExpensesServiceStub {
   constructor(private readonly store: FinanceStore) {}
 
-  create(userId: string, payload: Omit<ExpenseRecord, '_id' | 'userId'>) {
-    const expense = { _id: this.store.nextId(), userId, ...payload };
+  create(
+    userId: string,
+    payload: {
+      categoryId: string;
+      amount: number;
+      expenseDate: string;
+      description?: string;
+      merchant?: string;
+      items?: ExpenseItemRecord[];
+    },
+  ) {
+    const expense = {
+      _id: this.store.nextId(),
+      userId,
+      category: payload.categoryId,
+      amount: payload.amount,
+      expenseDate: payload.expenseDate,
+      description: payload.description,
+      merchant: payload.merchant,
+      items: payload.items ?? [],
+    };
     this.store.expenses.push(expense);
     return this.findOne(userId, expense._id);
   }
 
-  findAll(userId: string) {
+  findAll(userId: string, query?: { categoryId?: string }) {
     const items = this.store.expenses
-      .filter((item) => item.userId === userId)
+      .filter(
+        (item) =>
+          item.userId === userId &&
+          (!query?.categoryId || item.category === query.categoryId),
+      )
       .map((item) => this.attachCategory(item));
 
     return {
@@ -247,11 +282,31 @@ class ExpensesServiceStub {
     return this.attachCategory(expense!);
   }
 
-  update(userId: string, expenseId: string, payload: Partial<ExpenseRecord>) {
+  update(
+    userId: string,
+    expenseId: string,
+    payload: {
+      categoryId?: string;
+      amount?: number;
+      expenseDate?: string;
+      description?: string;
+      merchant?: string;
+      items?: ExpenseItemRecord[];
+    },
+  ) {
     const expense = this.store.expenses.find(
       (item) => item.userId === userId && item._id === expenseId,
     );
-    Object.assign(expense!, payload);
+    Object.assign(expense!, {
+      ...(payload.categoryId ? { category: payload.categoryId } : {}),
+      ...(payload.amount !== undefined ? { amount: payload.amount } : {}),
+      ...(payload.expenseDate ? { expenseDate: payload.expenseDate } : {}),
+      ...(payload.description !== undefined
+        ? { description: payload.description }
+        : {}),
+      ...(payload.merchant !== undefined ? { merchant: payload.merchant } : {}),
+      ...(payload.items !== undefined ? { items: payload.items } : {}),
+    });
     return this.attachCategory(expense!);
   }
 
@@ -265,12 +320,11 @@ class ExpensesServiceStub {
     }
   }
 
-  private attachCategory(expense: ExpenseRecord) {
+  private attachCategory(expense: StoredExpenseRecord): ExpenseResponseRecord {
     const category = this.store.categories.find(
-      (item) =>
-        item._id === expense.categoryId && item.userId === expense.userId,
+      (item) => item._id === expense.category && item.userId === expense.userId,
     );
-    return { ...expense, categoryId: category };
+    return { ...expense, category, items: expense.items ?? [] };
   }
 }
 
@@ -469,13 +523,13 @@ class ReportsServiceStub {
       expenses.reduce<
         Record<string, { totalAmount: number; expenseCount: number }>
       >((accumulator, expense) => {
-        const bucket = accumulator[expense.categoryId] ?? {
+        const bucket = accumulator[expense.category] ?? {
           totalAmount: 0,
           expenseCount: 0,
         };
         bucket.totalAmount += expense.amount;
         bucket.expenseCount += 1;
-        accumulator[expense.categoryId] = bucket;
+        accumulator[expense.category] = bucket;
         return accumulator;
       }, {}),
     ).map(([categoryId, totals]) => ({
@@ -664,14 +718,41 @@ describe('Finance API integration flow', () => {
     const expense = expensesController.create(
       userId,
       expenseDto,
-    ) as ExpenseRecord;
-
-    expect(
-      expensesController.findAll(userId, { page: 1, limit: 20 }),
-    ).toMatchObject({
-      total: 1,
+    ) as ExpenseResponseRecord;
+    expect(expense).toMatchObject({
+      amount: 125.5,
+      items: [],
+      category: {
+        _id: categoryId,
+      },
     });
-    expect(expensesController.findOne(userId, expense._id)).toBeDefined();
+    expect(expense).not.toHaveProperty('categoryId');
+
+    const listedExpenses = expensesController.findAll(userId, {
+      page: 1,
+      limit: 20,
+    }) as {
+      total: number;
+      items: ExpenseResponseRecord[];
+    };
+    expect(listedExpenses.total).toBe(1);
+    expect(listedExpenses.items[0]).toMatchObject({
+      items: [],
+      category: {
+        _id: categoryId,
+      },
+    });
+
+    const foundExpense = expensesController.findOne(
+      userId,
+      expense._id,
+    ) as ExpenseResponseRecord;
+    expect(foundExpense).toMatchObject({
+      items: [],
+      category: {
+        _id: categoryId,
+      },
+    });
 
     const debtDto = await transformValue(
       {
@@ -790,6 +871,36 @@ describe('Finance API integration flow', () => {
   });
 
   it('validates DTO payloads before controller execution', async () => {
+    await expect(
+      transformValue(
+        {
+          categoryId: createObjectId(99),
+          amount: 20,
+          expenseDate: '2026-03-10',
+          items: [{ name: 'Milk', price: 2.5, quantity: 2 }],
+        },
+        CreateExpenseDto,
+        'body',
+      ),
+    ).resolves.toMatchObject({
+      items: [{ name: 'Milk', price: 2.5, quantity: 2 }],
+    });
+
+    await expect(
+      validationPipe.transform(
+        {
+          categoryId: createObjectId(99),
+          amount: 20,
+          expenseDate: '2026-03-10',
+          items: [{ price: 0, quantity: 0 }],
+        },
+        {
+          type: 'body',
+          metatype: CreateExpenseDto,
+        },
+      ),
+    ).rejects.toThrow();
+
     await expect(
       validationPipe.transform(
         {

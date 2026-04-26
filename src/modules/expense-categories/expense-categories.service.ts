@@ -105,7 +105,7 @@ export class ExpenseCategoriesService {
 
     const linkedExpenses = await this.expenseModel.countDocuments({
       userId: foundCategory.userId,
-      categoryId: foundCategory._id,
+      category: foundCategory._id,
     });
 
     if (linkedExpenses) {

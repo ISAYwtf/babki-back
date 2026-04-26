@@ -103,6 +103,24 @@ describe('ReportsService', () => {
         expenseCount: 3,
       },
     ]);
+    expect(expenseModel.aggregate).toHaveBeenCalledWith([
+      {
+        $match: {
+          userId: new Types.ObjectId('507f1f77bcf86cd799439011'),
+          expenseDate: {
+            $gte: new Date(Date.UTC(2026, 2, 1, 0, 0, 0, 0)),
+            $lte: new Date(Date.UTC(2026, 2, 31, 23, 59, 59, 999)),
+          },
+        },
+      },
+      {
+        $group: {
+          _id: '$category',
+          totalAmount: { $sum: '$amount' },
+          expenseCount: { $sum: 1 },
+        },
+      },
+    ]);
     expect(summary.totalActiveDebtRemaining).toBe(500);
     expect(summary.activeDebtCount).toBe(2);
     expect(balanceModel.findOne).toHaveBeenCalledWith({
