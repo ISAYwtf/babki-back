@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Balance, BalanceSchema } from '../balances/schemas/balance.schema';
 import { Debt, DebtSchema } from '../debts/schemas/debt.schema';
 import { Expense, ExpenseSchema } from '../expenses/schemas/expense.schema';
+import { Income, IncomeSchema } from '../incomes/schemas/income.schema';
 import { User, UserSchema } from './schemas/user.schema';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
@@ -13,6 +14,7 @@ import { UsersService } from './users.service';
       { name: User.name, schema: UserSchema },
       { name: Balance.name, schema: BalanceSchema },
       { name: Expense.name, schema: ExpenseSchema },
+      { name: Income.name, schema: IncomeSchema },
       { name: Debt.name, schema: DebtSchema },
     ]),
   ],

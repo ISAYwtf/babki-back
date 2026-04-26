@@ -8,6 +8,7 @@ import {
   ExpenseCategoryDocument,
 } from '../expense-categories/schemas/expense-category.schema';
 import { Expense, ExpenseDocument } from '../expenses/schemas/expense.schema';
+import { Income, IncomeDocument } from '../incomes/schemas/income.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
 
 @Injectable()
@@ -18,6 +19,8 @@ export class ReportsService {
     private readonly balanceModel: Model<BalanceDocument>,
     @InjectModel(Expense.name)
     private readonly expenseModel: Model<ExpenseDocument>,
+    @InjectModel(Income.name)
+    private readonly incomeModel: Model<IncomeDocument>,
     @InjectModel(Debt.name) private readonly debtModel: Model<DebtDocument>,
     @InjectModel(ExpenseCategory.name)
     private readonly expenseCategoryModel: Model<ExpenseCategoryDocument>,
@@ -48,48 +51,68 @@ export class ReportsService {
 
     const objectUserId = new Types.ObjectId(userId);
 
-    const [balance, debtAggregate, expenseAggregate] = await Promise.all([
-      this.balanceModel
-        .findOne({
-          userId: objectUserId,
-          asOfDate: { $lte: to },
-        })
-        .sort({ asOfDate: -1, _id: -1 })
-        .lean()
-        .exec(),
-      this.debtModel.aggregate<{
-        totalActiveDebtRemaining: number;
-        activeDebtCount: number;
-      }>([
-        { $match: { userId: objectUserId, status: 'active' } },
-        {
-          $group: {
-            _id: null,
-            totalActiveDebtRemaining: { $sum: '$remainingAmount' },
-            activeDebtCount: { $sum: 1 },
-          },
-        },
-      ]),
-      this.expenseModel.aggregate<{
-        _id: Types.ObjectId;
-        totalAmount: number;
-        expenseCount: number;
-      }>([
-        {
-          $match: {
+    const [balance, debtAggregate, expenseAggregate, incomeAggregate] =
+      await Promise.all([
+        this.balanceModel
+          .findOne({
             userId: objectUserId,
-            expenseDate: { $gte: from, $lte: to },
+            asOfDate: { $lte: to },
+          })
+          .sort({ asOfDate: -1, _id: -1 })
+          .lean()
+          .exec(),
+        this.debtModel.aggregate<{
+          totalActiveDebtRemaining: number;
+          activeDebtCount: number;
+        }>([
+          { $match: { userId: objectUserId, status: 'active' } },
+          {
+            $group: {
+              _id: null,
+              totalActiveDebtRemaining: { $sum: '$remainingAmount' },
+              activeDebtCount: { $sum: 1 },
+            },
           },
-        },
-        {
-          $group: {
-            _id: '$categoryId',
-            totalAmount: { $sum: '$amount' },
-            expenseCount: { $sum: 1 },
+        ]),
+        this.expenseModel.aggregate<{
+          _id: Types.ObjectId;
+          totalAmount: number;
+          expenseCount: number;
+        }>([
+          {
+            $match: {
+              userId: objectUserId,
+              expenseDate: { $gte: from, $lte: to },
+            },
           },
-        },
-      ]),
-    ]);
+          {
+            $group: {
+              _id: '$categoryId',
+              totalAmount: { $sum: '$amount' },
+              expenseCount: { $sum: 1 },
+            },
+          },
+        ]),
+        this.incomeModel.aggregate<{
+          _id: null;
+          totalIncome: number;
+          incomeCount: number;
+        }>([
+          {
+            $match: {
+              userId: objectUserId,
+              incomeDate: { $gte: from, $lte: to },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalIncome: { $sum: '$amount' },
+              incomeCount: { $sum: 1 },
+            },
+          },
+        ]),
+      ]);
 
     const categoryIds = expenseAggregate.map((item) => item._id);
     const categories = categoryIds.length
@@ -122,6 +145,10 @@ export class ReportsService {
       totalActiveDebtRemaining: 0,
       activeDebtCount: 0,
     };
+    const incomeSummary = incomeAggregate[0] ?? {
+      totalIncome: 0,
+      incomeCount: 0,
+    };
 
     return {
       period: {
@@ -132,8 +159,11 @@ export class ReportsService {
       },
       currentAccountAmount: balance?.currentAccountAmount ?? 0,
       savingsAmount: balance?.savingsAmount ?? 0,
+      totalIncome: incomeSummary.totalIncome,
+      incomeCount: incomeSummary.incomeCount,
       totalExpenses: totals.totalExpenses,
       expenseCount: totals.expenseCount,
+      netCashflow: incomeSummary.totalIncome - totals.totalExpenses,
       expensesByCategory,
       totalActiveDebtRemaining: activeDebtSummary.totalActiveDebtRemaining,
       activeDebtCount: activeDebtSummary.activeDebtCount,

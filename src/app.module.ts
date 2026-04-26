@@ -9,6 +9,7 @@ import { DebtTransactionsModule } from './modules/debt-transactions/debt-transac
 import { DebtsModule } from './modules/debts/debts.module';
 import { ExpenseCategoriesModule } from './modules/expense-categories/expense-categories.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
+import { IncomesModule } from './modules/incomes/incomes.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { UsersModule } from './modules/users/users.module';
 
@@ -28,6 +29,7 @@ import { UsersModule } from './modules/users/users.module';
     BalancesModule,
     ExpenseCategoriesModule,
     ExpensesModule,
+    IncomesModule,
     DebtsModule,
     DebtTransactionsModule,
     ReportsModule,

@@ -6,6 +6,7 @@ import { Balance } from '../balances/schemas/balance.schema';
 import { Debt } from '../debts/schemas/debt.schema';
 import { ExpenseCategory } from '../expense-categories/schemas/expense-category.schema';
 import { Expense } from '../expenses/schemas/expense.schema';
+import { Income } from '../incomes/schemas/income.schema';
 import { User } from '../users/schemas/user.schema';
 import { ReportsService } from './reports.service';
 
@@ -17,6 +18,9 @@ describe('ReportsService', () => {
     findOne: jest.fn(),
   };
   const expenseModel = {
+    aggregate: jest.fn(),
+  };
+  const incomeModel = {
     aggregate: jest.fn(),
   };
   const debtModel = {
@@ -37,6 +41,7 @@ describe('ReportsService', () => {
         { provide: getModelToken(User.name), useValue: userModel },
         { provide: getModelToken(Balance.name), useValue: balanceModel },
         { provide: getModelToken(Expense.name), useValue: expenseModel },
+        { provide: getModelToken(Income.name), useValue: incomeModel },
         { provide: getModelToken(Debt.name), useValue: debtModel },
         {
           provide: getModelToken(ExpenseCategory.name),
@@ -48,7 +53,7 @@ describe('ReportsService', () => {
     service = moduleRef.get(ReportsService);
   });
 
-  it('builds a monthly summary from balances, expenses, and debts', async () => {
+  it('builds a monthly summary from balances, incomes, expenses, and debts', async () => {
     const categoryId = new Types.ObjectId();
     const lean = jest.fn().mockReturnValue({
       exec: jest.fn().mockResolvedValue({
@@ -64,6 +69,9 @@ describe('ReportsService', () => {
     });
     debtModel.aggregate.mockResolvedValue([
       { totalActiveDebtRemaining: 500, activeDebtCount: 2 },
+    ]);
+    incomeModel.aggregate.mockResolvedValue([
+      { _id: null, totalIncome: 1500, incomeCount: 2 },
     ]);
     expenseModel.aggregate.mockResolvedValue([
       { _id: categoryId, totalAmount: 280, expenseCount: 3 },
@@ -82,8 +90,11 @@ describe('ReportsService', () => {
 
     expect(summary.currentAccountAmount).toBe(1250);
     expect(summary.savingsAmount).toBe(4300);
+    expect(summary.totalIncome).toBe(1500);
+    expect(summary.incomeCount).toBe(2);
     expect(summary.totalExpenses).toBe(280);
     expect(summary.expenseCount).toBe(3);
+    expect(summary.netCashflow).toBe(1220);
     expect(summary.expensesByCategory).toEqual([
       {
         categoryId,
@@ -113,6 +124,7 @@ describe('ReportsService', () => {
     userModel.exists.mockResolvedValue(true);
     balanceModel.findOne.mockReturnValue({ sort });
     debtModel.aggregate.mockResolvedValue([]);
+    incomeModel.aggregate.mockResolvedValue([]);
     expenseModel.aggregate.mockResolvedValue([]);
 
     const summary = await service.getYearlySummary(
@@ -122,6 +134,9 @@ describe('ReportsService', () => {
 
     expect(summary.currentAccountAmount).toBe(2200);
     expect(summary.savingsAmount).toBe(5100);
+    expect(summary.totalIncome).toBe(0);
+    expect(summary.incomeCount).toBe(0);
+    expect(summary.netCashflow).toBe(0);
     expect(balanceModel.findOne).toHaveBeenCalledWith({
       userId: new Types.ObjectId('507f1f77bcf86cd799439011'),
       asOfDate: { $lte: new Date(Date.UTC(2026, 11, 31, 23, 59, 59, 999)) },

@@ -7,6 +7,7 @@ import {
   ExpenseCategorySchema,
 } from '../expense-categories/schemas/expense-category.schema';
 import { Expense, ExpenseSchema } from '../expenses/schemas/expense.schema';
+import { Income, IncomeSchema } from '../incomes/schemas/income.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
@@ -17,6 +18,7 @@ import { ReportsService } from './reports.service';
       { name: User.name, schema: UserSchema },
       { name: Balance.name, schema: BalanceSchema },
       { name: Expense.name, schema: ExpenseSchema },
+      { name: Income.name, schema: IncomeSchema },
       { name: Debt.name, schema: DebtSchema },
       { name: ExpenseCategory.name, schema: ExpenseCategorySchema },
     ]),

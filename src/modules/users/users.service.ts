@@ -10,6 +10,7 @@ import { getPagination } from '../../common/utils/pagination.util';
 import { Balance } from '../balances/schemas/balance.schema';
 import { Debt } from '../debts/schemas/debt.schema';
 import { Expense } from '../expenses/schemas/expense.schema';
+import { Income } from '../incomes/schemas/income.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -21,6 +22,7 @@ export class UsersService {
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(Balance.name) private readonly balanceModel: Model<Balance>,
     @InjectModel(Expense.name) private readonly expenseModel: Model<Expense>,
+    @InjectModel(Income.name) private readonly incomeModel: Model<Income>,
     @InjectModel(Debt.name) private readonly debtModel: Model<Debt>,
   ) {}
 
@@ -94,15 +96,17 @@ export class UsersService {
   async remove(userId: string) {
     await this.ensureUserExists(userId);
 
-    const [balanceCount, expenseCount, debtCount] = await Promise.all([
-      this.balanceModel.countDocuments({ userId }),
-      this.expenseModel.countDocuments({ userId }),
-      this.debtModel.countDocuments({ userId }),
-    ]);
+    const [balanceCount, expenseCount, incomeCount, debtCount] =
+      await Promise.all([
+        this.balanceModel.countDocuments({ userId }),
+        this.expenseModel.countDocuments({ userId }),
+        this.incomeModel.countDocuments({ userId }),
+        this.debtModel.countDocuments({ userId }),
+      ]);
 
-    if (balanceCount || expenseCount || debtCount) {
+    if (balanceCount || expenseCount || incomeCount || debtCount) {
       throw new ConflictException(
-        'Cannot delete a user with linked balance, expense, or debt records.',
+        'Cannot delete a user with linked balance, expense, income, or debt records.',
       );
     }
 
