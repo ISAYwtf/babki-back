@@ -2,7 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test } from '@nestjs/testing';
 import { Types } from 'mongoose';
-import { Balance } from '../balances/schemas/balance.schema';
+import { Account } from '../accounts/schemas/accounts.schema';
 import { Debt } from '../debts/schemas/debt.schema';
 import { ExpenseCategory } from '../expense-categories/schemas/expense-category.schema';
 import { Expense } from '../expenses/schemas/expense.schema';
@@ -14,7 +14,7 @@ describe('ReportsService', () => {
   const userModel = {
     exists: jest.fn(),
   };
-  const balanceModel = {
+  const accountModel = {
     findOne: jest.fn(),
   };
   const expenseModel = {
@@ -39,7 +39,7 @@ describe('ReportsService', () => {
       providers: [
         ReportsService,
         { provide: getModelToken(User.name), useValue: userModel },
-        { provide: getModelToken(Balance.name), useValue: balanceModel },
+        { provide: getModelToken(Account.name), useValue: accountModel },
         { provide: getModelToken(Expense.name), useValue: expenseModel },
         { provide: getModelToken(Income.name), useValue: incomeModel },
         { provide: getModelToken(Debt.name), useValue: debtModel },
@@ -53,18 +53,17 @@ describe('ReportsService', () => {
     service = moduleRef.get(ReportsService);
   });
 
-  it('builds a monthly summary from balances, incomes, expenses, and debts', async () => {
+  it('builds a monthly summary from accounts, incomes, expenses, and debts', async () => {
     const categoryId = new Types.ObjectId();
     const lean = jest.fn().mockReturnValue({
       exec: jest.fn().mockResolvedValue({
-        currentAccountAmount: 1250,
-        savingsAmount: 4300,
+        amount: 1250,
       }),
     });
     const sort = jest.fn().mockReturnValue({ lean });
 
     userModel.exists.mockResolvedValue(true);
-    balanceModel.findOne.mockReturnValue({
+    accountModel.findOne.mockReturnValue({
       sort,
     });
     debtModel.aggregate.mockResolvedValue([
@@ -88,8 +87,7 @@ describe('ReportsService', () => {
       3,
     );
 
-    expect(summary.currentAccountAmount).toBe(1250);
-    expect(summary.savingsAmount).toBe(4300);
+    expect(summary.amount).toBe(1250);
     expect(summary.totalIncome).toBe(1500);
     expect(summary.incomeCount).toBe(2);
     expect(summary.totalExpenses).toBe(280);
@@ -123,24 +121,23 @@ describe('ReportsService', () => {
     ]);
     expect(summary.totalActiveDebtRemaining).toBe(500);
     expect(summary.activeDebtCount).toBe(2);
-    expect(balanceModel.findOne).toHaveBeenCalledWith({
+    expect(accountModel.findOne).toHaveBeenCalledWith({
       userId: new Types.ObjectId('507f1f77bcf86cd799439011'),
       asOfDate: { $lte: new Date(Date.UTC(2026, 2, 31, 23, 59, 59, 999)) },
     });
     expect(sort).toHaveBeenCalledWith({ asOfDate: -1, _id: -1 });
   });
 
-  it('uses the latest balance snapshot on or before the end of the year', async () => {
+  it('uses the latest account snapshot on or before the end of the year', async () => {
     const lean = jest.fn().mockReturnValue({
       exec: jest.fn().mockResolvedValue({
-        currentAccountAmount: 2200,
-        savingsAmount: 5100,
+        amount: 2200,
       }),
     });
     const sort = jest.fn().mockReturnValue({ lean });
 
     userModel.exists.mockResolvedValue(true);
-    balanceModel.findOne.mockReturnValue({ sort });
+    accountModel.findOne.mockReturnValue({ sort });
     debtModel.aggregate.mockResolvedValue([]);
     incomeModel.aggregate.mockResolvedValue([]);
     expenseModel.aggregate.mockResolvedValue([]);
@@ -150,12 +147,11 @@ describe('ReportsService', () => {
       2026,
     );
 
-    expect(summary.currentAccountAmount).toBe(2200);
-    expect(summary.savingsAmount).toBe(5100);
+    expect(summary.amount).toBe(2200);
     expect(summary.totalIncome).toBe(0);
     expect(summary.incomeCount).toBe(0);
     expect(summary.netCashflow).toBe(0);
-    expect(balanceModel.findOne).toHaveBeenCalledWith({
+    expect(accountModel.findOne).toHaveBeenCalledWith({
       userId: new Types.ObjectId('507f1f77bcf86cd799439011'),
       asOfDate: { $lte: new Date(Date.UTC(2026, 11, 31, 23, 59, 59, 999)) },
     });

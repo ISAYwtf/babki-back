@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
 import { IsDateString, IsNumber, Min } from 'class-validator';
 
-export class UpsertBalanceDto {
+export class UpsertAccountDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)

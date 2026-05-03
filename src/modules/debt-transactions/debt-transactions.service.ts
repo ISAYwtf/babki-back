@@ -4,7 +4,6 @@ import { Model, Types } from 'mongoose';
 import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
 import { getPagination } from '../../common/utils/pagination.util';
 import { Debt, DebtDocument } from '../debts/schemas/debt.schema';
-import { User, UserDocument } from '../users/schemas/user.schema';
 import { ListDebtTransactionsQueryDto } from './dto/list-debt-transactions-query.dto';
 import {
   DebtTransaction,
@@ -16,7 +15,6 @@ export class DebtTransactionsService {
   constructor(
     @InjectModel(DebtTransaction.name)
     private readonly debtTransactionModel: Model<DebtTransactionDocument>,
-    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(Debt.name) private readonly debtModel: Model<DebtDocument>,
   ) {}
 
@@ -25,14 +23,10 @@ export class DebtTransactionsService {
     debtId: string,
     query: ListDebtTransactionsQueryDto,
   ): Promise<PaginatedResponse<DebtTransaction>> {
-    await Promise.all([
-      this.ensureUserExists(userId),
-      this.ensureDebtExists(userId, debtId),
-    ]);
+    await this.ensureDebtExists(userId, debtId);
 
     const { page, limit, skip } = getPagination(query);
     const filter = {
-      userId: new Types.ObjectId(userId),
       debtId: new Types.ObjectId(debtId),
     };
 
@@ -51,15 +45,11 @@ export class DebtTransactionsService {
   }
 
   async findOne(userId: string, debtId: string, debtTransactionId: string) {
-    await Promise.all([
-      this.ensureUserExists(userId),
-      this.ensureDebtExists(userId, debtId),
-    ]);
+    await this.ensureDebtExists(userId, debtId);
 
     const debtTransaction = await this.debtTransactionModel
       .findOne({
         _id: debtTransactionId,
-        userId: new Types.ObjectId(userId),
         debtId: new Types.ObjectId(debtId),
       })
       .lean()
@@ -67,19 +57,11 @@ export class DebtTransactionsService {
 
     if (!debtTransaction) {
       throw new NotFoundException(
-        `Debt transaction ${debtTransactionId} for debt ${debtId} and user ${userId} not found.`,
+        `Debt transaction ${debtTransactionId} for debt ${debtId} not found.`,
       );
     }
 
     return debtTransaction;
-  }
-
-  private async ensureUserExists(userId: string) {
-    const found = await this.userModel.exists({ _id: userId });
-
-    if (!found) {
-      throw new NotFoundException(`User ${userId} not found.`);
-    }
   }
 
   private async ensureDebtExists(userId: string, debtId: string) {
@@ -89,9 +71,7 @@ export class DebtTransactionsService {
     });
 
     if (!found) {
-      throw new NotFoundException(
-        `Debt ${debtId} for user ${userId} not found.`,
-      );
+      throw new NotFoundException(`Debt ${debtId} is not found.`);
     }
   }
 }

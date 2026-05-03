@@ -6,15 +6,15 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from '../users/schemas/user.schema';
-import { CreateBalanceDto } from './dto/create-balance.dto';
-import { UpdateBalanceDto } from './dto/update-balance.dto';
-import { Balance, BalanceDocument } from './schemas/balance.schema';
+import { CreateAccountDto } from './dto/create-account.dto';
+import { UpdateAccountDto } from './dto/update-account.dto';
+import { Account, AccountDocument } from './schemas/accounts.schema';
 
 @Injectable()
-export class BalancesService {
+export class AccountsService {
   constructor(
-    @InjectModel(Balance.name)
-    private readonly balanceModel: Model<BalanceDocument>,
+    @InjectModel(Account.name)
+    private readonly accountModel: Model<AccountDocument>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
   ) {}
 
@@ -22,7 +22,7 @@ export class BalancesService {
     const foundId = await this.ensureUserExists(userId);
     const requestedDate = asOfDate ? new Date(asOfDate) : new Date();
 
-    const balance = await this.balanceModel
+    const account = await this.accountModel
       .findOne({
         userId: foundId,
         asOfDate: { $lte: requestedDate },
@@ -31,59 +31,59 @@ export class BalancesService {
       .lean()
       .exec();
 
-    if (!balance) {
+    if (!account) {
       return null;
     }
 
-    return balance;
+    return account;
   }
 
   /**
    * Creates a new dated balance snapshot for a user.
    */
-  async addBalance(userId: string, createBalanceDto: CreateBalanceDto) {
+  async addAccount(userId: string, createAccountDto: CreateAccountDto) {
     const foundId = await this.ensureUserExists(userId);
-    const snapshotDate = new Date(createBalanceDto.asOfDate);
+    const snapshotDate = new Date(createAccountDto.asOfDate);
 
-    const existingBalance = await this.balanceModel
+    const existingAccount = await this.accountModel
       .findOne({ userId: foundId, asOfDate: snapshotDate })
       .lean()
       .exec();
 
-    if (existingBalance) {
+    if (existingAccount) {
       throw new ConflictException(
-        `Balance for user ${userId} on ${createBalanceDto.asOfDate} already exists.`,
+        `Account for user ${userId} on ${createAccountDto.asOfDate} already exists.`,
       );
     }
 
-    const createdBalance = await this.balanceModel.create({
+    const createdAccount = await this.accountModel.create({
       userId: foundId,
-      ...createBalanceDto,
+      ...createAccountDto,
       asOfDate: snapshotDate,
     });
-    return createdBalance.toObject();
+    return createdAccount.toObject();
   }
 
   /**
    * Updates an existing balance record for a user.
    */
-  async updateBalance(
+  async updateAccount(
     userId: string,
-    balanceId: string,
-    updateBalanceDto: UpdateBalanceDto,
+    accountId: string,
+    updateAccountDto: UpdateAccountDto,
   ) {
     const foundId = await this.ensureUserExists(userId);
-    const rawAsOfDate: unknown = (updateBalanceDto as { asOfDate?: unknown })
+    const rawAsOfDate: unknown = (updateAccountDto as { asOfDate?: unknown })
       .asOfDate;
     const normalizedAsOfDate =
       typeof rawAsOfDate === 'string' ? rawAsOfDate : undefined;
 
     try {
-      const updatedBalance = await this.balanceModel
+      const updatedAccount = await this.accountModel
         .findOneAndUpdate(
-          { _id: balanceId, userId: foundId },
+          { _id: accountId, userId: foundId },
           {
-            ...updateBalanceDto,
+            ...updateAccountDto,
             ...(normalizedAsOfDate
               ? { asOfDate: new Date(normalizedAsOfDate) }
               : {}),
@@ -96,18 +96,18 @@ export class BalancesService {
         .lean()
         .exec();
 
-      if (!updatedBalance) {
+      if (!updatedAccount) {
         throw new NotFoundException(
-          `Balance for user ${userId} not found. Cannot update.`,
+          `Account for user ${userId} not found. Cannot update.`,
         );
       }
 
-      return updatedBalance;
+      return updatedAccount;
     } catch (error) {
       if (this.isDuplicateKeyError(error)) {
         const duplicateDate = normalizedAsOfDate ?? 'the requested date';
         throw new ConflictException(
-          `Balance for user ${userId} on ${duplicateDate} already exists.`,
+          `Account for user ${userId} on ${duplicateDate} already exists.`,
         );
       }
 
@@ -118,22 +118,21 @@ export class BalancesService {
   /**
    * Deletes the balance record for a given user ID.
    */
-  async deleteBalance(userId: string, balanceId: string) {
+  async deleteAccount(userId: string, accountId: string) {
     const foundId = await this.ensureUserExists(userId);
 
-    const result = await this.balanceModel.findOneAndDelete({
-      _id: balanceId,
+    const result = await this.accountModel.findOneAndDelete({
+      _id: accountId,
       userId: foundId,
     });
 
     if (!result) {
       throw new NotFoundException(
-        `Balance for user ${userId} not found. Cannot delete.`,
+        `Account for user ${userId} not found. Cannot delete.`,
       );
     }
 
-    // Return a simple success identifier or the deleted document if needed
-    return { message: `Balance for user ${userId} successfully deleted.` };
+    return null;
   }
 
   private async ensureUserExists(userId: string) {

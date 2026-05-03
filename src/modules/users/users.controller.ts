@@ -1,16 +1,6 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  Query,
-} from '@nestjs/common';
-import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
-import { CreateUserDto } from './dto/create-user.dto';
-import { ListUsersQueryDto } from './dto/list-users-query.dto';
+import { Body, Controller, Delete, Get, Patch } from '@nestjs/common';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 
@@ -18,31 +8,21 @@ import { UsersService } from './users.service';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Post()
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.create(createUserDto);
+  @Get('me')
+  findMe(@CurrentUser() currentUser: AuthenticatedUser) {
+    return this.usersService.findProfile(currentUser.userId);
   }
 
-  @Get()
-  findAll(@Query() query: ListUsersQueryDto) {
-    return this.usersService.findAll(query);
-  }
-
-  @Get(':userId')
-  findOne(@Param('userId', ParseObjectIdPipe) userId: string) {
-    return this.usersService.findOne(userId);
-  }
-
-  @Patch(':userId')
+  @Patch('me')
   update(
-    @Param('userId', ParseObjectIdPipe) userId: string,
+    @CurrentUser() currentUser: AuthenticatedUser,
     @Body() updateUserDto: UpdateUserDto,
   ) {
-    return this.usersService.update(userId, updateUserDto);
+    return this.usersService.update(currentUser.userId, updateUserDto);
   }
 
-  @Delete(':userId')
-  remove(@Param('userId', ParseObjectIdPipe) userId: string) {
-    return this.usersService.remove(userId);
+  @Delete('me')
+  remove(@CurrentUser() currentUser: AuthenticatedUser) {
+    return this.usersService.remove(currentUser.userId);
   }
 }

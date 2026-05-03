@@ -1,7 +1,7 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test } from '@nestjs/testing';
-import { Balance } from '../balances/schemas/balance.schema';
+import { Account } from '../accounts/schemas/accounts.schema';
 import { Debt } from '../debts/schemas/debt.schema';
 import { Expense } from '../expenses/schemas/expense.schema';
 import { Income } from '../incomes/schemas/income.schema';
@@ -13,7 +13,7 @@ describe('UsersService', () => {
     exists: jest.fn(),
     findByIdAndDelete: jest.fn().mockReturnValue({ exec: jest.fn() }),
   };
-  const balanceModel = {
+  const accountModel = {
     countDocuments: jest.fn(),
   };
   const expenseModel = {
@@ -35,7 +35,7 @@ describe('UsersService', () => {
       providers: [
         UsersService,
         { provide: getModelToken(User.name), useValue: userModel },
-        { provide: getModelToken(Balance.name), useValue: balanceModel },
+        { provide: getModelToken(Account.name), useValue: accountModel },
         { provide: getModelToken(Expense.name), useValue: expenseModel },
         { provide: getModelToken(Income.name), useValue: incomeModel },
         { provide: getModelToken(Debt.name), useValue: debtModel },
@@ -47,7 +47,7 @@ describe('UsersService', () => {
 
   it('blocks deleting users with dependent records', async () => {
     userModel.exists.mockResolvedValue(true);
-    balanceModel.countDocuments.mockResolvedValue(1);
+    accountModel.countDocuments.mockResolvedValue(1);
     expenseModel.countDocuments.mockResolvedValue(0);
     incomeModel.countDocuments.mockResolvedValue(0);
     debtModel.countDocuments.mockResolvedValue(0);

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Balance, BalanceDocument } from '../balances/schemas/balance.schema';
+import { Account, AccountDocument } from '../accounts/schemas/accounts.schema';
 import { Debt, DebtDocument } from '../debts/schemas/debt.schema';
 import {
   ExpenseCategory,
@@ -15,8 +15,8 @@ import { User, UserDocument } from '../users/schemas/user.schema';
 export class ReportsService {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
-    @InjectModel(Balance.name)
-    private readonly balanceModel: Model<BalanceDocument>,
+    @InjectModel(Account.name)
+    private readonly accountModel: Model<AccountDocument>,
     @InjectModel(Expense.name)
     private readonly expenseModel: Model<ExpenseDocument>,
     @InjectModel(Income.name)
@@ -51,9 +51,9 @@ export class ReportsService {
 
     const objectUserId = new Types.ObjectId(userId);
 
-    const [balance, debtAggregate, expenseAggregate, incomeAggregate] =
+    const [account, debtAggregate, expenseAggregate, incomeAggregate] =
       await Promise.all([
-        this.balanceModel
+        this.accountModel
           .findOne({
             userId: objectUserId,
             asOfDate: { $lte: to },
@@ -157,8 +157,7 @@ export class ReportsService {
         from,
         to,
       },
-      currentAccountAmount: balance?.currentAccountAmount ?? 0,
-      savingsAmount: balance?.savingsAmount ?? 0,
+      amount: account?.amount ?? 0,
       totalIncome: incomeSummary.totalIncome,
       incomeCount: incomeSummary.incomeCount,
       totalExpenses: totals.totalExpenses,

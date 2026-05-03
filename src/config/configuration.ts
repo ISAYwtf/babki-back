@@ -2,6 +2,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 type SecretsFile = {
+  JWT_EXPIRES_IN?: string;
+  JWT_SECRET?: string;
   MONGO_AUTH_ENABLED?: boolean;
   MONGO_URI?: string;
   MONGO_HOST?: string;
@@ -32,7 +34,11 @@ function buildMongoUri(secrets: SecretsFile, databaseName: string): string {
   const encodedUser = encodeURIComponent(secrets.MONGO_USER ?? '');
   const encodedPassword = encodeURIComponent(secrets.MONGO_PASSWORD ?? '');
 
-  if (!secrets.MONGO_AUTH_ENABLED) {
+  const mongoAuthEnabled =
+    secrets.MONGO_AUTH_ENABLED ??
+    Boolean(secrets.MONGO_USER || secrets.MONGO_PASSWORD);
+
+  if (!mongoAuthEnabled) {
     return `mongodb://${host}:${port}/${databaseName}`;
   }
 
@@ -59,6 +65,13 @@ export default () => {
   }
 
   const secrets = readSecretsFile(secretsFilePath);
+  const jwtSecret = process.env.JWT_SECRET ?? secrets.JWT_SECRET;
+
+  if (!jwtSecret && process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'JWT_SECRET must be defined in the environment or secrets file.',
+    );
+  }
 
   return {
     app: {
@@ -69,6 +82,10 @@ export default () => {
     mongo: {
       dbName: databaseName,
       uri: buildMongoUri(secrets, databaseName),
+    },
+    jwt: {
+      secret: jwtSecret ?? 'local-development-jwt-secret',
+      expiresIn: process.env.JWT_EXPIRES_IN ?? secrets.JWT_EXPIRES_IN ?? '60m',
     },
   };
 };

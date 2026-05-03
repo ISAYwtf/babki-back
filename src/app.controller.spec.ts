@@ -18,7 +18,7 @@ describe('AppController', () => {
     it('should return service health information', () => {
       expect(appController.getHealth()).toEqual({
         status: 'ok',
-        service: 'personal-finance-api',
+        service: 'babki-api',
       });
     });
   });

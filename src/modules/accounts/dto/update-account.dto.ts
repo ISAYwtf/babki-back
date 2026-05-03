@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
 import { IsDateString, IsNumber, IsOptional, Min } from 'class-validator';
 
-export class UpdateBalanceDto {
+export class UpdateAccountDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })

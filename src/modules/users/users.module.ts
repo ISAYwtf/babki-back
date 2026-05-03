@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { Balance, BalanceSchema } from '../balances/schemas/balance.schema';
+import { Account, AccountsSchema } from '../accounts/schemas/accounts.schema';
 import { Debt, DebtSchema } from '../debts/schemas/debt.schema';
 import { Expense, ExpenseSchema } from '../expenses/schemas/expense.schema';
 import { Income, IncomeSchema } from '../incomes/schemas/income.schema';
@@ -12,7 +12,7 @@ import { UsersService } from './users.service';
   imports: [
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
-      { name: Balance.name, schema: BalanceSchema },
+      { name: Account.name, schema: AccountsSchema },
       { name: Expense.name, schema: ExpenseSchema },
       { name: Income.name, schema: IncomeSchema },
       { name: Debt.name, schema: DebtSchema },

@@ -1,9 +1,11 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { ListDebtTransactionsQueryDto } from './dto/list-debt-transactions-query.dto';
 import { DebtTransactionsService } from './debt-transactions.service';
 
-@Controller('users/:userId/debts/:debtId/transactions')
+@Controller('debts/:debtId/transactions')
 export class DebtTransactionsController {
   constructor(
     private readonly debtTransactionsService: DebtTransactionsService,
@@ -11,21 +13,25 @@ export class DebtTransactionsController {
 
   @Get()
   findAll(
-    @Param('userId', ParseObjectIdPipe) userId: string,
+    @CurrentUser() currentUser: AuthenticatedUser,
     @Param('debtId', ParseObjectIdPipe) debtId: string,
     @Query() query: ListDebtTransactionsQueryDto,
   ) {
-    return this.debtTransactionsService.findAll(userId, debtId, query);
+    return this.debtTransactionsService.findAll(
+      currentUser.userId,
+      debtId,
+      query,
+    );
   }
 
   @Get(':debtTransactionId')
   findOne(
-    @Param('userId', ParseObjectIdPipe) userId: string,
+    @CurrentUser() currentUser: AuthenticatedUser,
     @Param('debtId', ParseObjectIdPipe) debtId: string,
     @Param('debtTransactionId', ParseObjectIdPipe) debtTransactionId: string,
   ) {
     return this.debtTransactionsService.findOne(
-      userId,
+      currentUser.userId,
       debtId,
       debtTransactionId,
     );

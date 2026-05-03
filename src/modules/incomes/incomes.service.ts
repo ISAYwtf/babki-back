@@ -27,6 +27,7 @@ export class IncomesService {
     });
   }
 
+  // TODO Добавить сортировку в DTO
   async findAll(
     userId: string,
     query: ListIncomesQueryDto,

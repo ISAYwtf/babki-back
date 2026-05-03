@@ -1,15 +1,11 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import { Debt } from '../../debts/schemas/debt.schema';
-import { User } from '../../users/schemas/user.schema';
 
 export type DebtTransactionDocument = HydratedDocument<DebtTransaction>;
 
 @Schema({ timestamps: true })
 export class DebtTransaction {
-  @Prop({ required: true, type: Types.ObjectId, ref: User.name })
-  userId: Types.ObjectId;
-
   @Prop({ required: true, type: Types.ObjectId, ref: Debt.name })
   debtId: Types.ObjectId;
 

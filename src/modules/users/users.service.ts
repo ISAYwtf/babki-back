@@ -7,7 +7,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
 import { getPagination } from '../../common/utils/pagination.util';
-import { Balance } from '../balances/schemas/balance.schema';
+import { Account } from '../accounts/schemas/accounts.schema';
 import { Debt } from '../debts/schemas/debt.schema';
 import { Expense } from '../expenses/schemas/expense.schema';
 import { Income } from '../incomes/schemas/income.schema';
@@ -16,24 +16,31 @@ import { ListUsersQueryDto } from './dto/list-users-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User, UserDocument } from './schemas/user.schema';
 
+export type UserProfile = Omit<User, 'passwordHash'> & {
+  _id: unknown;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
-    @InjectModel(Balance.name) private readonly balanceModel: Model<Balance>,
+    @InjectModel(Account.name) private readonly accountModel: Model<Account>,
     @InjectModel(Expense.name) private readonly expenseModel: Model<Expense>,
     @InjectModel(Income.name) private readonly incomeModel: Model<Income>,
     @InjectModel(Debt.name) private readonly debtModel: Model<Debt>,
   ) {}
 
-  async create(createUserDto: CreateUserDto) {
+  async createWithPassword(createUserDto: CreateUserDto, passwordHash: string) {
     try {
       const user = await this.userModel.create({
         ...createUserDto,
         email: createUserDto.email.toLowerCase(),
+        passwordHash,
       });
 
-      return user.toObject();
+      return this.serializeUser(user.toObject());
     } catch (error) {
       this.handleDuplicateEmail(error);
     }
@@ -57,14 +64,22 @@ export class UsersService {
     return { items, total, page, limit };
   }
 
-  async findOne(userId: string) {
+  async findProfile(userId: string) {
     const user = await this.userModel.findById(userId).lean().exec();
 
     if (!user) {
       throw new NotFoundException(`User ${userId} not found.`);
     }
 
-    return user;
+    return this.serializeUser(user);
+  }
+
+  async findByEmailWithPassword(email: string) {
+    return this.userModel
+      .findOne({ email: email.toLowerCase() })
+      .select('+passwordHash')
+      .lean()
+      .exec();
   }
 
   async update(userId: string, updateUserDto: UpdateUserDto) {
@@ -87,7 +102,7 @@ export class UsersService {
         throw new NotFoundException(`User ${userId} not found.`);
       }
 
-      return user;
+      return this.serializeUser(user);
     } catch (error) {
       this.handleDuplicateEmail(error);
     }
@@ -96,17 +111,17 @@ export class UsersService {
   async remove(userId: string) {
     await this.ensureUserExists(userId);
 
-    const [balanceCount, expenseCount, incomeCount, debtCount] =
+    const [accountCount, expenseCount, incomeCount, debtCount] =
       await Promise.all([
-        this.balanceModel.countDocuments({ userId }),
+        this.accountModel.countDocuments({ userId }),
         this.expenseModel.countDocuments({ userId }),
         this.incomeModel.countDocuments({ userId }),
         this.debtModel.countDocuments({ userId }),
       ]);
 
-    if (balanceCount || expenseCount || incomeCount || debtCount) {
+    if (accountCount || expenseCount || incomeCount || debtCount) {
       throw new ConflictException(
-        'Cannot delete a user with linked balance, expense, income, or debt records.',
+        'Cannot delete a user with linked account, expense, income, or debt records.',
       );
     }
 
@@ -143,5 +158,12 @@ export class UsersService {
     }
 
     throw error;
+  }
+
+  private serializeUser(user: UserDocument | Record<string, unknown>) {
+    const profile = { ...(user as Record<string, unknown>) };
+    delete profile.passwordHash;
+
+    return profile as UserProfile;
   }
 }

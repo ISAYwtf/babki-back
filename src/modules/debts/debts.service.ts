@@ -147,7 +147,6 @@ export class DebtsService {
     }
 
     await this.debtTransactionModel.create({
-      userId: foundUserId,
       debtId: new Types.ObjectId(debtId),
       transactionDate: repayDebtDto.repaymentDate,
       repaymentAmount: repayDebtDto.repaymentAmount,
