@@ -11,10 +11,10 @@ import {
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
-import { CreateAccountDto } from './dto/create-account.dto';
+import { CreateAccountDto } from './dto/create.dto';
 import { AccountsService } from './accounts.service';
-import { UpdateAccountDto } from './dto/update-account.dto';
-import { FindAccountQueryDto } from './dto/find-account-query.dto';
+import { UpdateAccountQueryDto } from './dto/update-query.dto';
+import { UpdateAccountDto } from './dto/update.dto';
 
 // TODO Добавить транзакции
 @Controller('accounts')
@@ -22,45 +22,38 @@ export class AccountsController {
   constructor(private readonly accountsService: AccountsService) {}
 
   @Get()
-  findByUserId(
-    @CurrentUser() currentUser: AuthenticatedUser,
-    @Query() query: FindAccountQueryDto,
-  ) {
-    return this.accountsService.findByUserId(
-      currentUser.userId,
-      query.asOfDate,
-    );
+  findByUserId(@CurrentUser() currentUser: AuthenticatedUser) {
+    return this.accountsService.findByUserId(currentUser.userId);
   }
 
   @Post()
-  add(
+  create(
     @CurrentUser() currentUser: AuthenticatedUser,
     @Body() createAccountDto: CreateAccountDto,
   ) {
-    return this.accountsService.addAccount(
-      currentUser.userId,
-      createAccountDto,
-    );
+    return this.accountsService.create(currentUser.userId, createAccountDto);
   }
 
   @Patch(':accountId')
-  update(
-    @Param('accountId', ParseObjectIdPipe) accountId: string,
+  updateAmount(
     @CurrentUser() currentUser: AuthenticatedUser,
+    @Param('accountId', ParseObjectIdPipe) accountId: string,
+    @Query() updateQueryDto: UpdateAccountQueryDto,
     @Body() updateAccountDto: UpdateAccountDto,
   ) {
-    return this.accountsService.updateAccount(
+    return this.accountsService.updateAmount(
       currentUser.userId,
       accountId,
+      updateQueryDto,
       updateAccountDto,
     );
   }
 
   @Delete(':accountId')
   remove(
-    @Param('accountId', ParseObjectIdPipe) accountId: string,
     @CurrentUser() currentUser: AuthenticatedUser,
+    @Param('accountId', ParseObjectIdPipe) accountId: string,
   ) {
-    return this.accountsService.deleteAccount(currentUser.userId, accountId);
+    return this.accountsService.deleteEntity(currentUser.userId, accountId);
   }
 }

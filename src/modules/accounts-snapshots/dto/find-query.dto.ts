@@ -1,7 +1,7 @@
 import { IsDateString, IsOptional } from 'class-validator';
 
-export class FindAccountQueryDto {
+export class FindAccountSnapshotQueryDto {
   @IsOptional()
   @IsDateString()
-  asOfDate?: string;
+  date?: string;
 }

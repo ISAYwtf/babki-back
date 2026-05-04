@@ -4,33 +4,33 @@ import { Model, Types } from 'mongoose';
 import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
 import { getPagination } from '../../common/utils/pagination.util';
 import {
-  SavingSnapshots,
-  SavingSnapshotsDocument,
-} from '../savings-snapshots/schemas/savings-snapshots.schema';
-import { Saving, SavingDocument } from '../savings/schemas/savings.schema';
-import { CreateSavingSnapshotTransactionDto } from './dto/create.dto';
-import { ListSavingTransactionsQueryDto } from './dto/list-saving-transactions-query.dto';
+  AccountSnapshot,
+  AccountSnapshotsDocument,
+} from '../accounts-snapshots/schemas/accounts-snapshots.schema';
+import { Account, AccountDocument } from '../accounts/schemas/accounts.schema';
+import { CreateAccountSnapshotTransactionDto } from './dto/create.dto';
+import { ListAccountTransactionsQueryDto } from './dto/list-transactions-query.dto';
 import {
-  SavingTransaction,
-  SavingTransactionDocument,
-} from './schemas/saving-transaction.schema';
+  AccountTransaction,
+  AccountTransactionDocument,
+} from './schemas/account-transaction.schema';
 
 @Injectable()
-export class SavingsTransactionsService {
+export class AccountsTransactionsService {
   constructor(
-    @InjectModel(SavingTransaction.name)
-    private readonly savingTransactionModel: Model<SavingTransactionDocument>,
-    @InjectModel(SavingSnapshots.name)
-    private readonly snapshotsModel: Model<SavingSnapshotsDocument>,
-    @InjectModel(Saving.name)
-    private readonly savingsModel: Model<SavingDocument>,
+    @InjectModel(AccountTransaction.name)
+    private readonly transactionModel: Model<AccountTransactionDocument>,
+    @InjectModel(AccountSnapshot.name)
+    private readonly snapshotsModel: Model<AccountSnapshotsDocument>,
+    @InjectModel(Account.name)
+    private readonly accountModel: Model<AccountDocument>,
   ) {}
 
   async findAll(
     userId: string,
     snapshotId: string,
-    query: ListSavingTransactionsQueryDto,
-  ): Promise<PaginatedResponse<SavingTransaction>> {
+    query: ListAccountTransactionsQueryDto,
+  ): Promise<PaginatedResponse<AccountTransaction>> {
     const foundSnapshotId = await this.ensureSnapshotExists(userId, snapshotId);
 
     const { page, limit, skip } = getPagination(query);
@@ -39,53 +39,49 @@ export class SavingsTransactionsService {
     };
 
     const [items, total] = await Promise.all([
-      this.savingTransactionModel
+      this.transactionModel
         .find(filter)
         .sort({ transactionDate: -1, createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean()
         .exec(),
-      this.savingTransactionModel.countDocuments(filter),
+      this.transactionModel.countDocuments(filter),
     ]);
 
     return { items, total, page, limit };
   }
 
-  async findOne(
-    userId: string,
-    snapshotId: string,
-    savingTransactionId: string,
-  ) {
+  async findOne(userId: string, snapshotId: string, transactionId: string) {
     const foundSnapshotId = await this.ensureSnapshotExists(userId, snapshotId);
 
-    const savingTransaction = await this.savingTransactionModel
+    const accountTransaction = await this.transactionModel
       .findOne({
-        _id: savingTransactionId,
+        _id: transactionId,
         snapshotId: foundSnapshotId,
       })
       .lean()
       .exec();
 
-    if (!savingTransaction) {
+    if (!accountTransaction) {
       throw new NotFoundException(
-        `Saving transaction ${savingTransactionId} for snapshot ${snapshotId} not found.`,
+        `Account transaction ${transactionId} for snapshot ${snapshotId} not found.`,
       );
     }
 
-    return savingTransaction;
+    return accountTransaction;
   }
 
   async create(
     userId: string,
-    createTransactionDto: CreateSavingSnapshotTransactionDto,
+    createTransactionDto: CreateAccountSnapshotTransactionDto,
   ) {
     const foundSnapshotId = await this.ensureSnapshotExists(
       userId,
       createTransactionDto.snapshotId,
     );
 
-    const transaction = await this.savingTransactionModel.create({
+    const transaction = await this.transactionModel.create({
       snapshotId: foundSnapshotId,
       transactionDate: createTransactionDto.transactionDate,
       amount: createTransactionDto.amount,
@@ -95,7 +91,7 @@ export class SavingsTransactionsService {
   }
 
   async deleteAllBySnapshotIds(snapshotIds: Types.ObjectId[]) {
-    await this.savingTransactionModel.deleteMany({
+    await this.transactionModel.deleteMany({
       snapshotId: {
         $in: snapshotIds,
       },
@@ -112,13 +108,13 @@ export class SavingsTransactionsService {
       throw new NotFoundException(`Snapshot ${snapshotId} not found.`);
     }
 
-    const saving = await this.savingsModel.exists({
-      _id: snapshot.savingId,
+    const account = await this.accountModel.exists({
+      _id: snapshot.accountId,
       userId: new Types.ObjectId(userId),
     });
 
-    if (!saving) {
-      throw new NotFoundException(`Saving ${snapshotId} not found.`);
+    if (!account) {
+      throw new NotFoundException(`Account ${snapshotId} not found.`);
     }
 
     return snapshot._id;

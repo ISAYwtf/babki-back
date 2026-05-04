@@ -24,6 +24,6 @@ export const SavingTransactionSchema =
 
 SavingTransactionSchema.index({
   userId: 1,
-  savingSnapshotId: 1,
+  snapshotId: 1,
   transactionDate: -1,
 });

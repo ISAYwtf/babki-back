@@ -1,13 +1,13 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { startOfMonth } from 'date-fns/startOfMonth';
 import { Model } from 'mongoose';
+import { AccountsSnapshotsService } from '../accounts-snapshots/accounts-snapshots.service';
+import { AccountSnapshotsDocument } from '../accounts-snapshots/schemas/accounts-snapshots.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
-import { CreateAccountDto } from './dto/create-account.dto';
-import { UpdateAccountDto } from './dto/update-account.dto';
+import { CreateAccountDto } from './dto/create.dto';
+import { UpdateAccountQueryDto } from './dto/update-query.dto';
+import { UpdateAccountDto } from './dto/update.dto';
 import { Account, AccountDocument } from './schemas/accounts.schema';
 
 @Injectable()
@@ -16,121 +16,74 @@ export class AccountsService {
     @InjectModel(Account.name)
     private readonly accountModel: Model<AccountDocument>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    private readonly snapshotsService: AccountsSnapshotsService,
   ) {}
 
-  async findByUserId(userId: string, asOfDate?: string) {
-    const foundId = await this.ensureUserExists(userId);
-    const requestedDate = asOfDate ? new Date(asOfDate) : new Date();
-
-    const account = await this.accountModel
-      .findOne({
-        userId: foundId,
-        asOfDate: { $lte: requestedDate },
-      })
-      .sort({ asOfDate: -1, _id: -1 })
+  async findByUserId(userId: string) {
+    const foundUserId = await this.ensureUserExists(userId);
+    const entity = await this.accountModel
+      .findOne({ userId: foundUserId })
       .lean()
       .exec();
 
-    if (!account) {
-      return null;
+    if (!entity) {
+      throw new NotFoundException(`Account for user ${userId} not found.`);
     }
 
-    return account;
+    return await this.buildResponse(entity);
   }
 
-  /**
-   * Creates a new dated balance snapshot for a user.
-   */
-  async addAccount(userId: string, createAccountDto: CreateAccountDto) {
-    const foundId = await this.ensureUserExists(userId);
-    const snapshotDate = new Date(createAccountDto.asOfDate);
+  // TODO Изменить после добавление отличительных полей (например, валюта)
+  async create(userId: string, createAccountDto: CreateAccountDto) {
+    const foundUserId = await this.ensureUserExists(userId);
 
-    const existingAccount = await this.accountModel
-      .findOne({ userId: foundId, asOfDate: snapshotDate })
-      .lean()
-      .exec();
+    const existingEntity = await this.accountModel
+      .findOne({ userId: foundUserId })
+      .lean();
 
-    if (existingAccount) {
-      throw new ConflictException(
-        `Account for user ${userId} on ${createAccountDto.asOfDate} already exists.`,
-      );
+    if (existingEntity) {
+      return await this.buildResponse(existingEntity);
     }
 
-    const createdAccount = await this.accountModel.create({
-      userId: foundId,
-      ...createAccountDto,
-      asOfDate: snapshotDate,
+    // TODO Обернуть в транзакцию
+    const createdEntity = await this.accountModel.create({
+      userId: foundUserId,
     });
-    return createdAccount.toObject();
+    const snapshot = await this.snapshotsService.create(
+      userId,
+      createdEntity._id.toString(),
+      {
+        amount: createAccountDto.amount ?? 0,
+        date: startOfMonth(new Date()).toISOString(),
+      },
+    );
+    return await this.buildResponse(createdEntity.toObject(), [snapshot]);
   }
 
-  /**
-   * Updates an existing balance record for a user.
-   */
-  async updateAccount(
+  async updateAmount(
     userId: string,
-    accountId: string,
+    entityId: string,
+    queryDto: UpdateAccountQueryDto,
     updateAccountDto: UpdateAccountDto,
   ) {
-    const foundId = await this.ensureUserExists(userId);
-    const rawAsOfDate: unknown = (updateAccountDto as { asOfDate?: unknown })
-      .asOfDate;
-    const normalizedAsOfDate =
-      typeof rawAsOfDate === 'string' ? rawAsOfDate : undefined;
-
-    try {
-      const updatedAccount = await this.accountModel
-        .findOneAndUpdate(
-          { _id: accountId, userId: foundId },
-          {
-            ...updateAccountDto,
-            ...(normalizedAsOfDate
-              ? { asOfDate: new Date(normalizedAsOfDate) }
-              : {}),
-          },
-          {
-            returnDocument: 'after',
-            runValidators: true,
-          },
-        )
-        .lean()
-        .exec();
-
-      if (!updatedAccount) {
-        throw new NotFoundException(
-          `Account for user ${userId} not found. Cannot update.`,
-        );
-      }
-
-      return updatedAccount;
-    } catch (error) {
-      if (this.isDuplicateKeyError(error)) {
-        const duplicateDate = normalizedAsOfDate ?? 'the requested date';
-        throw new ConflictException(
-          `Account for user ${userId} on ${duplicateDate} already exists.`,
-        );
-      }
-
-      throw error;
-    }
+    await this.snapshotsService.recalculateSnapshotsFromDate(
+      userId,
+      entityId,
+      queryDto,
+      updateAccountDto,
+    );
+    return await this.findByUserId(userId);
   }
 
-  /**
-   * Deletes the balance record for a given user ID.
-   */
-  async deleteAccount(userId: string, accountId: string) {
-    const foundId = await this.ensureUserExists(userId);
+  async deleteEntity(userId: string, entityId: string) {
+    const foundUserId = await this.ensureUserExists(userId);
 
-    const result = await this.accountModel.findOneAndDelete({
-      _id: accountId,
-      userId: foundId,
+    // TODO Обернуть в транзакцию
+    await this.snapshotsService.deleteAllBySavingId(userId, entityId);
+    await this.accountModel.findOneAndDelete({
+      _id: entityId,
+      userId: foundUserId,
     });
-
-    if (!result) {
-      throw new NotFoundException(
-        `Account for user ${userId} not found. Cannot delete.`,
-      );
-    }
 
     return null;
   }
@@ -143,6 +96,21 @@ export class AccountsService {
     }
 
     return exists._id;
+  }
+
+  private async buildResponse(
+    entity: AccountDocument,
+    existingSnapshots?: AccountSnapshotsDocument[],
+  ) {
+    const snapshots =
+      existingSnapshots ??
+      (await this.snapshotsService.findAllBySavingId(entity._id.toString()));
+
+    return {
+      ...entity,
+      amount: snapshots[0]?.amount ?? 0,
+      timeline: snapshots,
+    };
   }
 
   private isDuplicateKeyError(error: unknown) {
