@@ -98,6 +98,7 @@ export class AccountsSnapshotsService {
       snapshotId: entity._id.toString(),
       transactionDate: queryDto.date,
       amount: updateDto.amount,
+      type: updateDto.isSaving ? 'saving' : undefined,
     });
 
     await this.snapshotsModel.updateMany(

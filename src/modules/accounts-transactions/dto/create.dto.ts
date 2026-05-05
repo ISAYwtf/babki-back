@@ -1,5 +1,15 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsMongoId, IsNumber } from 'class-validator';
+import {
+  IsDateString,
+  IsIn,
+  IsMongoId,
+  IsNumber,
+  IsOptional,
+} from 'class-validator';
+import {
+  transactionTypes,
+  type TransactionType,
+} from '../schemas/account-transaction.schema';
 
 export class CreateAccountSnapshotTransactionDto {
   @IsMongoId()
@@ -11,4 +21,8 @@ export class CreateAccountSnapshotTransactionDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   amount: number;
+
+  @IsOptional()
+  @IsIn(transactionTypes)
+  type?: TransactionType;
 }

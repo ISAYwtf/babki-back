@@ -31,11 +31,11 @@ export class AccountsTransactionsService {
     snapshotId: string,
     query: ListAccountTransactionsQueryDto,
   ): Promise<PaginatedResponse<AccountTransaction>> {
-    const foundSnapshotId = await this.ensureSnapshotExists(userId, snapshotId);
+    const foundSnapshot = await this.ensureSnapshotExists(userId, snapshotId);
 
     const { page, limit, skip } = getPagination(query);
     const filter = {
-      snapshotId: foundSnapshotId,
+      snapshotId: foundSnapshot._id,
     };
 
     const [items, total] = await Promise.all([
@@ -53,12 +53,12 @@ export class AccountsTransactionsService {
   }
 
   async findOne(userId: string, snapshotId: string, transactionId: string) {
-    const foundSnapshotId = await this.ensureSnapshotExists(userId, snapshotId);
+    const foundSnapshot = await this.ensureSnapshotExists(userId, snapshotId);
 
     const accountTransaction = await this.transactionModel
       .findOne({
         _id: transactionId,
-        snapshotId: foundSnapshotId,
+        snapshotId: foundSnapshot._id,
       })
       .lean()
       .exec();
@@ -76,15 +76,20 @@ export class AccountsTransactionsService {
     userId: string,
     createTransactionDto: CreateAccountSnapshotTransactionDto,
   ) {
-    const foundSnapshotId = await this.ensureSnapshotExists(
+    const foundSnapshot = await this.ensureSnapshotExists(
       userId,
       createTransactionDto.snapshotId,
     );
 
+    const fallbackTransactionType =
+      createTransactionDto.amount > 0 ? 'income' : 'expense';
+
     const transaction = await this.transactionModel.create({
-      snapshotId: foundSnapshotId,
+      snapshotId: foundSnapshot._id,
+      accountId: foundSnapshot.accountId,
       transactionDate: createTransactionDto.transactionDate,
       amount: createTransactionDto.amount,
+      type: createTransactionDto.type ?? fallbackTransactionType,
     });
 
     return transaction.toObject();
@@ -114,9 +119,11 @@ export class AccountsTransactionsService {
     });
 
     if (!account) {
-      throw new NotFoundException(`Account ${snapshotId} not found.`);
+      throw new NotFoundException(
+        `Account ${snapshot.accountId.toString()} not found.`,
+      );
     }
 
-    return snapshot._id;
+    return snapshot;
   }
 }

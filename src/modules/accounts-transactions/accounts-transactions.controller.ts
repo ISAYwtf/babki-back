@@ -6,7 +6,7 @@ import { ListAccountTransactionsQueryDto } from './dto/list-transactions-query.d
 import { AccountsTransactionsService } from './accounts-transactions.service';
 
 // TODO Добавить эндпоинт удаления транзакции с обновлением сумм в снэпшотах
-@Controller('snapshots/:snapshotId/transactions')
+@Controller('accounts/snapshots/:snapshotId/transactions')
 export class AccountsTransactionsController {
   constructor(
     private readonly accountsTransactionsService: AccountsTransactionsService,

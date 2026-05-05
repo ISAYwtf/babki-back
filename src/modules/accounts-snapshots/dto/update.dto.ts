@@ -1,8 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsNumber } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional } from 'class-validator';
 
 export class UpdateAccountSnapshotDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   amount: number;
+
+  @IsBoolean()
+  @IsOptional()
+  isSaving?: boolean;
 }

@@ -4,8 +4,10 @@ import { startOfMonth } from 'date-fns/startOfMonth';
 import { Model } from 'mongoose';
 import { AccountsSnapshotsService } from '../accounts-snapshots/accounts-snapshots.service';
 import { AccountSnapshotsDocument } from '../accounts-snapshots/schemas/accounts-snapshots.schema';
+import { SavingsService } from '../savings/savings.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateAccountDto } from './dto/create.dto';
+import { SaveAccountDto } from './dto/save.dto';
 import { UpdateAccountQueryDto } from './dto/update-query.dto';
 import { UpdateAccountDto } from './dto/update.dto';
 import { Account, AccountDocument } from './schemas/accounts.schema';
@@ -17,6 +19,7 @@ export class AccountsService {
     private readonly accountModel: Model<AccountDocument>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     private readonly snapshotsService: AccountsSnapshotsService,
+    private readonly savingsServices: SavingsService,
   ) {}
 
   async findByUserId(userId: string) {
@@ -75,6 +78,30 @@ export class AccountsService {
     return await this.findByUserId(userId);
   }
 
+  async saveAmount(
+    userId: string,
+    entityId: string,
+    queryDto: UpdateAccountQueryDto,
+    saveAccountDto: SaveAccountDto,
+  ) {
+    await this.snapshotsService.recalculateSnapshotsFromDate(
+      userId,
+      entityId,
+      queryDto,
+      {
+        amount: -saveAccountDto.amount,
+        isSaving: true,
+      },
+    );
+    await this.savingsServices.updateAmount(
+      userId,
+      saveAccountDto.savingId,
+      queryDto,
+      { amount: saveAccountDto.amount },
+    );
+    return await this.findByUserId(userId);
+  }
+
   async deleteEntity(userId: string, entityId: string) {
     const foundUserId = await this.ensureUserExists(userId);
 
@@ -111,14 +138,5 @@ export class AccountsService {
       amount: snapshots[0]?.amount ?? 0,
       timeline: snapshots,
     };
-  }
-
-  private isDuplicateKeyError(error: unknown) {
-    return (
-      typeof error === 'object' &&
-      error !== null &&
-      'code' in error &&
-      error.code === 11000
-    );
   }
 }

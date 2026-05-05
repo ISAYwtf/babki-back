@@ -118,7 +118,9 @@ export class SavingsTransactionsService {
     });
 
     if (!saving) {
-      throw new NotFoundException(`Saving ${snapshotId} not found.`);
+      throw new NotFoundException(
+        `Saving ${snapshot.savingId.toString()} not found.`,
+      );
     }
 
     return snapshot._id;

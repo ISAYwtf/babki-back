@@ -13,6 +13,7 @@ import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.in
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { CreateAccountDto } from './dto/create.dto';
 import { AccountsService } from './accounts.service';
+import { SaveAccountDto } from './dto/save.dto';
 import { UpdateAccountQueryDto } from './dto/update-query.dto';
 import { UpdateAccountDto } from './dto/update.dto';
 
@@ -46,6 +47,21 @@ export class AccountsController {
       accountId,
       updateQueryDto,
       updateAccountDto,
+    );
+  }
+
+  @Patch(':accountId/save')
+  save(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Param('accountId', ParseObjectIdPipe) accountId: string,
+    @Query() updateQueryDto: UpdateAccountQueryDto,
+    @Body() saveAccountDto: SaveAccountDto,
+  ) {
+    return this.accountsService.saveAmount(
+      currentUser.userId,
+      accountId,
+      updateQueryDto,
+      saveAccountDto,
     );
   }
 
