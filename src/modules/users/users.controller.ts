@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Patch } from '@nestjs/common';
+import { Body, Controller, Get, Patch } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -19,10 +19,5 @@ export class UsersController {
     @Body() updateUserDto: UpdateUserDto,
   ) {
     return this.usersService.update(currentUser.userId, updateUserDto);
-  }
-
-  @Delete('me')
-  remove(@CurrentUser() currentUser: AuthenticatedUser) {
-    return this.usersService.remove(currentUser.userId);
   }
 }

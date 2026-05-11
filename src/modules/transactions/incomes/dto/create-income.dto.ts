@@ -1,6 +1,5 @@
 import { Type } from 'class-transformer';
 import {
-  IsBoolean,
   IsDateString,
   IsNumber,
   IsOptional,
@@ -9,14 +8,14 @@ import {
   Min,
 } from 'class-validator';
 
-export class RepayDebtDto {
-  @IsDateString()
-  repaymentDate: string;
-
+export class CreateIncomeDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01)
   amount: number;
+
+  @IsDateString()
+  transactionDate: string;
 
   @IsOptional()
   @IsString()
@@ -24,6 +23,7 @@ export class RepayDebtDto {
   description?: string;
 
   @IsOptional()
-  @IsBoolean()
-  isIncome?: boolean;
+  @IsString()
+  @MaxLength(255)
+  source?: string;
 }

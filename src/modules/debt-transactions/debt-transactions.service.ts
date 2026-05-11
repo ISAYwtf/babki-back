@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
-import { getPagination } from '../../common/utils/pagination.util';
+import { PaginatedResponse } from 'src/common/interfaces/paginated-response.interface';
+import { getPagination } from 'src/common/utils/pagination.util';
 import { Debt, DebtDocument } from '../debts/schemas/debt.schema';
 import { ListDebtTransactionsQueryDto } from './dto/list-debt-transactions-query.dto';
 import {

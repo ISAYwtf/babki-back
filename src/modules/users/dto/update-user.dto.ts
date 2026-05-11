@@ -1,5 +1,4 @@
 import {
-  IsDateString,
   IsEmail,
   IsISO4217CurrencyCode,
   IsOptional,
@@ -25,10 +24,6 @@ export class UpdateUserDto {
   @IsOptional()
   @IsISO4217CurrencyCode()
   currency?: string;
-
-  @IsOptional()
-  @IsDateString()
-  birthDate?: string;
 
   @IsOptional()
   @IsString()

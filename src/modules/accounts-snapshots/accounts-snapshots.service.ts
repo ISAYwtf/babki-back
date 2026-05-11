@@ -4,8 +4,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { plainToInstance } from 'class-transformer';
+import { startOfMonth } from 'date-fns/startOfMonth';
 import { Model, Types } from 'mongoose';
-import { AccountsTransactionsService } from '../accounts-transactions/accounts-transactions.service';
 import { Account, AccountDocument } from '../accounts/schemas/accounts.schema';
 import { CreateAccountSnapshotDto } from './dto/create.dto';
 import { UpdateAccountSnapshotQueryDto } from './dto/update-query.dto';
@@ -22,7 +23,6 @@ export class AccountsSnapshotsService {
     private readonly snapshotsModel: Model<AccountSnapshotsDocument>,
     @InjectModel(Account.name)
     private readonly accountsModel: Model<AccountDocument>,
-    private readonly transactionsService: AccountsTransactionsService,
   ) {}
 
   async findByAccountId(userId: string, accountId: string, date?: string) {
@@ -34,7 +34,7 @@ export class AccountsSnapshotsService {
         accountId: foundAccountId,
         date: { $lte: requestedDate },
       })
-      .sort({ date: -1 })
+      .sort({ date: -1, createdAt: -1 })
       .lean();
 
     if (!entity) {
@@ -44,29 +44,52 @@ export class AccountsSnapshotsService {
     return entity;
   }
 
+  async findOrCreateByAccountId(
+    userId: string,
+    accountId: string,
+    date?: string,
+  ) {
+    const foundSnapshot = await this.findByAccountId(userId, accountId, date);
+    const resolvedDate = date ? new Date(date) : new Date();
+    if (
+      !foundSnapshot ||
+      foundSnapshot.date.getMonth() !== resolvedDate.getMonth()
+    ) {
+      const createdSnapshot = await this.snapshotsModel.create({
+        accountId: new Types.ObjectId(accountId),
+        amount: foundSnapshot?.amount ?? 0,
+        date: startOfMonth(resolvedDate),
+      });
+      return createdSnapshot.toObject();
+    }
+    return foundSnapshot;
+  }
+
   async create(
     userId: string,
     accountId: string,
     createSnapshotDto: CreateAccountSnapshotDto,
   ) {
+    const createDtoInstance = plainToInstance(
+      CreateAccountSnapshotDto,
+      createSnapshotDto,
+    );
     const foundAccountId = await this.ensureAccountExists(userId, accountId);
-    const snapshotDate = new Date(createSnapshotDto.date);
 
     const existingEntity = await this.snapshotsModel
-      .findOne({ accountId: foundAccountId, date: snapshotDate })
+      .findOne({ accountId: foundAccountId, date: createDtoInstance.date })
       .lean()
       .exec();
 
     if (existingEntity) {
       throw new ConflictException(
-        `Snapshot for account ${accountId} on ${createSnapshotDto.date} already exists.`,
+        `Snapshot for account ${accountId} on ${createSnapshotDto.date.toISOString()} already exists.`,
       );
     }
 
     return await this.snapshotsModel.create({
       accountId: foundAccountId,
-      ...createSnapshotDto,
-      date: snapshotDate,
+      ...createDtoInstance,
     });
   }
 
@@ -81,7 +104,7 @@ export class AccountsSnapshotsService {
         accountId: new Types.ObjectId(accountId),
         date: { $lte: queryDto.date },
       })
-      .sort({ date: -1 })
+      .sort({ date: -1, createdAt: -1 })
       .lean()
       .exec();
 
@@ -92,14 +115,6 @@ export class AccountsSnapshotsService {
     }
 
     const foundAccountId = await this.ensureAccountExists(userId, accountId);
-
-    // TODO Обернуть в транзакцию
-    await this.transactionsService.create(userId, {
-      snapshotId: entity._id.toString(),
-      transactionDate: queryDto.date,
-      amount: updateDto.amount,
-      type: updateDto.isSaving ? 'saving' : undefined,
-    });
 
     await this.snapshotsModel.updateMany(
       { accountId: foundAccountId, date: { $gte: entity.date } },
@@ -114,41 +129,43 @@ export class AccountsSnapshotsService {
     );
   }
 
-  async deleteEntity(userId: string, accountId: string, entityId: string) {
+  async deleteAllByAccountId(userId: string, accountId: string) {
     const foundAccountId = await this.ensureAccountExists(userId, accountId);
-
-    // TODO Обернуть в транзакцию
-    await this.transactionsService.deleteAllBySnapshotIds([
-      new Types.ObjectId(entityId),
-    ]);
-    await this.snapshotsModel.findOneAndDelete({
-      _id: entityId,
-      accountId: foundAccountId,
-    });
-
-    return null;
-  }
-
-  async deleteAllBySavingId(userId: string, accountId: string) {
-    const foundAccountId = await this.ensureAccountExists(userId, accountId);
-    const snapshots = (await this.snapshotsModel
-      .find({ accountId: foundAccountId })
-      .select('_id')) as Types.ObjectId[];
-
-    await this.transactionsService.deleteAllBySnapshotIds(
-      snapshots.map((snapshot) => snapshot._id),
-    );
-
     await this.snapshotsModel.deleteMany({ accountId: foundAccountId });
   }
 
   // TODO Параметры сортировки и пагинации
-  findAllBySavingId(accountId: string) {
-    return this.snapshotsModel
-      .find({ accountId: new Types.ObjectId(accountId) })
-      .limit(20)
-      .sort({ date: -1 })
-      .lean();
+  async findAllByAccounts(accountIds: Types.ObjectId[]) {
+    return this.snapshotsModel.aggregate<{
+      _id: Types.ObjectId;
+      documents: AccountSnapshotsDocument[];
+    }>([
+      { $match: { accountId: { $in: accountIds } } },
+      {
+        $group: {
+          _id: '$accountId',
+          documents: {
+            $topN: {
+              n: 20,
+              sortBy: { date: -1, createdAt: -1 },
+              output: '$$ROOT',
+            },
+          },
+        },
+      },
+      // {
+      //   $project: {
+      //     documents: {
+      //       $sortArray: {
+      //         input: '$documents',
+      //         sortBy: { date: -1, createdAt: -1 },
+      //       },
+      //     },
+      //   },
+      //   // $sort: { date: -1, createdAt: -1 },
+      // },
+      // { $limit: 20 },
+    ]);
   }
 
   private async ensureAccountExists(userId: string, accountId: string) {

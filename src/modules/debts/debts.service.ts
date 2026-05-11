@@ -7,6 +7,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
 import { getPagination } from '../../common/utils/pagination.util';
+import { IncomesService } from '../transactions/incomes/incomes.service';
 import {
   DebtTransaction,
   DebtTransactionDocument,
@@ -25,6 +26,7 @@ export class DebtsService {
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(DebtTransaction.name)
     private readonly debtTransactionModel: Model<DebtTransactionDocument>,
+    private readonly incomeService: IncomesService,
   ) {}
 
   async create(userId: string, createDebtDto: CreateDebtDto) {
@@ -140,7 +142,7 @@ export class DebtsService {
       );
     }
 
-    if (repayDebtDto.repaymentAmount > currentDebt.remainingAmount) {
+    if (repayDebtDto.amount > currentDebt.remainingAmount) {
       throw new BadRequestException(
         'Repayment amount cannot exceed the remaining debt amount.',
       );
@@ -149,14 +151,21 @@ export class DebtsService {
     await this.debtTransactionModel.create({
       debtId: new Types.ObjectId(debtId),
       transactionDate: repayDebtDto.repaymentDate,
-      repaymentAmount: repayDebtDto.repaymentAmount,
+      amount: repayDebtDto.amount,
       description: repayDebtDto.description,
     });
+    if (repayDebtDto.isIncome) {
+      await this.incomeService.create(userId, {
+        amount: repayDebtDto.amount,
+        transactionDate: repayDebtDto.repaymentDate,
+        description: repayDebtDto.description,
+        source: `Погашение долга ${currentDebt.debtor}`,
+      });
+    }
 
     const remainingAmount =
-      Math.round(
-        (currentDebt.remainingAmount - repayDebtDto.repaymentAmount) * 100,
-      ) / 100;
+      Math.round((currentDebt.remainingAmount - repayDebtDto.amount) * 100) /
+      100;
     const status = remainingAmount === 0 ? 'closed' : currentDebt.status;
 
     const debt = await this.debtModel

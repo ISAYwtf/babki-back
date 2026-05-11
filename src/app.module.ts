@@ -5,18 +5,13 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import configuration from './config/configuration';
 import { AccountsSnapshotsModule } from './modules/accounts-snapshots/accounts-snapshots.module';
-import { AccountsTransactionsModule } from './modules/accounts-transactions/accounts-transactions.module';
+import { TransactionsModule } from './modules/transactions/transactions.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { AuthModule } from './modules/auth/auth.module';
 import { AccountsModule } from './modules/accounts/accounts.module';
 import { DebtTransactionsModule } from './modules/debt-transactions/debt-transactions.module';
 import { DebtsModule } from './modules/debts/debts.module';
 import { ExpenseCategoriesModule } from './modules/expense-categories/expense-categories.module';
-import { ExpensesModule } from './modules/expenses/expenses.module';
-import { IncomesModule } from './modules/incomes/incomes.module';
-import { SavingsTransactionsModule } from './modules/savings-transactions/savings-transactions.module';
-import { SavingsSnapshotsModule } from './modules/savings-snapshots/savings-snapshots.module';
-import { SavingsModule } from './modules/savings/savings.module';
 import { UsersModule } from './modules/users/users.module';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -36,15 +31,10 @@ import { APP_GUARD } from '@nestjs/core';
     UsersModule,
     AccountsModule,
     AccountsSnapshotsModule,
-    AccountsTransactionsModule,
+    TransactionsModule,
     ExpenseCategoriesModule,
-    ExpensesModule,
-    IncomesModule,
     DebtsModule,
     DebtTransactionsModule,
-    SavingsModule,
-    SavingsSnapshotsModule,
-    SavingsTransactionsModule,
   ],
   controllers: [AppController],
   providers: [

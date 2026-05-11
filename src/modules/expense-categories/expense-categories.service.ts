@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Expense, ExpenseDocument } from '../expenses/schemas/expense.schema';
+import { ExpensesService } from '../transactions/expenses/expenses.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateExpenseCategoryDto } from './dto/create-expense-category.dto';
 import { UpdateExpenseCategoryDto } from './dto/update-expense-category.dto';
@@ -19,9 +19,8 @@ export class ExpenseCategoriesService {
   constructor(
     @InjectModel(ExpenseCategory.name)
     private readonly expenseCategoryModel: Model<ExpenseCategoryDocument>,
-    @InjectModel(Expense.name)
-    private readonly expenseModel: Model<ExpenseDocument>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    private readonly expensesService: ExpensesService,
   ) {}
 
   async create(
@@ -47,7 +46,7 @@ export class ExpenseCategoriesService {
 
     return this.expenseCategoryModel
       .find({ userId: new Types.ObjectId(userId) })
-      .sort({ name: 1 })
+      .sort({ createdAt: -1 })
       .lean()
       .exec();
   }
@@ -103,9 +102,8 @@ export class ExpenseCategoriesService {
   async remove(userId: string, categoryId: string) {
     const foundCategory = await this.findOne(userId, categoryId);
 
-    const linkedExpenses = await this.expenseModel.countDocuments({
-      userId: foundCategory.userId,
-      category: foundCategory._id,
+    const linkedExpenses = await this.expensesService.countByFilters(userId, {
+      categoryId,
     });
 
     if (linkedExpenses) {

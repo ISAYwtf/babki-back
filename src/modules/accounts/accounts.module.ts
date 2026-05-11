@@ -1,23 +1,36 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AccountsSnapshotsModule } from '../accounts-snapshots/accounts-snapshots.module';
-import { SavingsModule } from '../savings/savings.module';
+import { TransactionsModule } from '../transactions/transactions.module';
 import { User, UserSchema } from '../users/schemas/user.schema';
+import { BalancesController } from './balances/balances.controller';
+import { BalancesService } from './balances/balances.service';
+import { SavingsController } from './savings/savings.controller';
+import { SavingsService } from './savings/savings.service';
 import { Account, AccountsSchema } from './schemas/accounts.schema';
-import { AccountsController } from './accounts.controller';
-import { AccountsService } from './accounts.service';
+import { AccountsController } from './accounts/accounts.controller';
+import { AccountsService } from './accounts/accounts.service';
+import { Balance, BalanceSchema } from './schemas/balances.schema';
+import { Saving, SavingsSchema } from './schemas/savings.schema';
 
 @Module({
   imports: [
     AccountsSnapshotsModule,
-    SavingsModule,
+    TransactionsModule,
     MongooseModule.forFeature([
-      { name: Account.name, schema: AccountsSchema },
       { name: User.name, schema: UserSchema },
+      {
+        name: Account.name,
+        schema: AccountsSchema,
+        discriminators: [
+          { name: Saving.name, schema: SavingsSchema, value: 'saving' },
+          { name: Balance.name, schema: BalanceSchema, value: 'balance' },
+        ],
+      },
     ]),
   ],
-  controllers: [AccountsController],
-  providers: [AccountsService],
+  controllers: [AccountsController, BalancesController, SavingsController],
+  providers: [AccountsService, BalancesService, SavingsService],
   exports: [MongooseModule, AccountsService],
 })
 export class AccountsModule {}

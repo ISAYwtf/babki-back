@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { TransactionsModule } from '../transactions/transactions.module';
 import {
   DebtTransaction,
   DebtTransactionSchema,
@@ -11,6 +12,7 @@ import { DebtsService } from './debts.service';
 
 @Module({
   imports: [
+    TransactionsModule,
     MongooseModule.forFeature([
       { name: Debt.name, schema: DebtSchema },
       { name: User.name, schema: UserSchema },

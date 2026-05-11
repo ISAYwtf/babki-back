@@ -10,7 +10,7 @@ export class DebtTransaction {
   debtId: Types.ObjectId;
 
   @Prop({ required: true, min: 0.01 })
-  repaymentAmount: number;
+  amount: number;
 
   @Prop({ required: true })
   transactionDate: Date;

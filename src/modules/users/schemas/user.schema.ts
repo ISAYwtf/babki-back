@@ -20,13 +20,8 @@ export class User {
   @Prop({ required: true, trim: true, uppercase: true })
   currency: string;
 
-  @Prop()
-  birthDate?: Date;
-
   @Prop({ trim: true })
   notes?: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
-
-UserSchema.index({ email: 1 }, { unique: true });
