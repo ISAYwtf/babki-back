@@ -12,15 +12,12 @@ import {
   AccountDocument,
   AccountType,
 } from '../schemas/accounts.schema';
-import { Balance, BalanceDocument } from '../schemas/balances.schema';
 
 @Injectable()
 export class AccountsService {
   constructor(
     @InjectModel(Account.name)
     private readonly accountModel: Model<AccountDocument>,
-    @InjectModel(Balance.name)
-    private readonly balanceModel: Model<BalanceDocument>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     private readonly snapshotsService: AccountsSnapshotsService,
     private readonly transactionService: TransactionsService,
@@ -35,7 +32,7 @@ export class AccountsService {
       .exec();
 
     if (!entities.length) {
-      throw new NotFoundException(`Accounts for user ${userId} not found.`);
+      return [];
     }
 
     return this.buildResponse(entities);

@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { AccountsSnapshotsService } from '../../accounts-snapshots/accounts-snapshots.service';
@@ -36,12 +40,31 @@ export class SavesService {
       );
     }
 
+    const sourceSnapshot = await this.snapshotsService.findByAccountId(
+      userId,
+      createSaveDto.sourceAccountId,
+      createSaveDto.transactionDate,
+    );
+
+    if (!sourceSnapshot) {
+      throw new NotFoundException(
+        `Snapshot for account ${createSaveDto.sourceAccountId} not found.`,
+      );
+    }
+
+    if (sourceSnapshot.amount < createSaveDto.amount) {
+      throw new BadRequestException('Insufficient funds');
+    }
+
     // TODO Обернуть в транзакцию
     const createdSave = await this.saveModel.create({
       userId: foundIds.userId,
       accountId: foundIds.accountId,
       snapshotId: foundSnapshot._id,
-      ...createSaveDto,
+      sourceAccountId: sourceSnapshot.accountId,
+      amount: createSaveDto.amount,
+      description: createSaveDto.description,
+      transactionDate: createSaveDto.transactionDate,
     });
     await this.snapshotsService.recalculateSnapshotsFromDate(
       userId,
@@ -77,11 +100,12 @@ export class SavesService {
   }
 
   async findOne(userId: string, transactionId: string) {
-    return this.transactionsService.findOne(
+    const typedEntity = await this.transactionsService.findOne(
       userId,
       transactionId,
       this.saveModel,
     );
+    return typedEntity as SaveDocument | undefined;
   }
 
   // TODO Обернуть в транзакцию
@@ -105,11 +129,34 @@ export class SavesService {
 
     if (updateIncomeDto.amount) {
       const diffAmount = updateIncomeDto.amount - save.amount;
+
+      const sourceSnapshot = await this.snapshotsService.findByAccountId(
+        userId,
+        save.sourceAccountId.toString(),
+        save.transactionDate.toString(),
+      );
+
+      if (!sourceSnapshot) {
+        throw new NotFoundException(
+          `Snapshot for account ${save.sourceAccountId.toString()} not found.`,
+        );
+      }
+
+      if (sourceSnapshot.amount < diffAmount) {
+        throw new BadRequestException('Insufficient funds');
+      }
+
       await this.snapshotsService.recalculateSnapshotsFromDate(
         userId,
         save.accountId.toString(),
         { date: save.transactionDate.toISOString() },
         { amount: diffAmount },
+      );
+      await this.snapshotsService.recalculateSnapshotsFromDate(
+        userId,
+        save.sourceAccountId.toString(),
+        { date: save.transactionDate.toISOString() },
+        { amount: -diffAmount },
       );
     }
 

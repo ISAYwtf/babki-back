@@ -9,6 +9,8 @@ import {
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { ExpensesController } from './expenses/expenses.controller';
 import { ExpensesService } from './expenses/expenses.service';
+import { SavesController } from './saves/saves.controller';
+import { SavesService } from './saves/saves.service';
 import { Expense, ExpenseSchema } from './schemas/expense.schema';
 import { IncomesController } from './incomes/incomes.controller';
 import { IncomesService } from './incomes/incomes.service';
@@ -36,12 +38,23 @@ import { Transaction, TransactionSchema } from './schemas/transaction.schema';
       },
     ]),
   ],
-  controllers: [TransactionsController, ExpensesController, IncomesController],
-  providers: [TransactionsService, ExpensesService, IncomesService],
+  controllers: [
+    TransactionsController,
+    ExpensesController,
+    IncomesController,
+    SavesController,
+  ],
+  providers: [
+    TransactionsService,
+    ExpensesService,
+    IncomesService,
+    SavesService,
+  ],
   exports: [
     TransactionsService,
     ExpensesService,
     IncomesService,
+    SavesService,
     MongooseModule,
   ],
 })

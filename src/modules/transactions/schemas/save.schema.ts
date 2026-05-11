@@ -6,7 +6,7 @@ import { Transaction } from './transaction.schema';
 @Schema()
 export class Save extends Transaction {
   @Prop({ required: true, type: Types.ObjectId, ref: Account.name })
-  sourceAccountId: string;
+  sourceAccountId: Types.ObjectId;
 }
 
 export const SaveSchema = SchemaFactory.createForClass(Save);

@@ -125,7 +125,7 @@ export class AccountsSnapshotsService {
           },
         },
       ],
-      { updatePipeline: true },
+      { updatePipeline: true, runValidators: true },
     );
   }
 

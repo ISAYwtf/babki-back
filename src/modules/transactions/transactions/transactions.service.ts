@@ -13,6 +13,7 @@ import { ListTransactionsQueryDto } from '../dto/list-transactions-query.dto';
 import {
   Transaction,
   TransactionDocument,
+  TransactionType,
 } from '../schemas/transaction.schema';
 
 @Injectable()
@@ -139,11 +140,12 @@ export class TransactionsService {
     userId: Types.ObjectId,
     query: Pick<
       ListTransactionsQueryDto,
-      'snapshotId' | 'accountId' | 'fromDate' | 'toDate'
+      'snapshotId' | 'accountId' | 'fromDate' | 'toDate' | 'transactionType'
     >,
   ) {
     const filter: {
       userId: Types.ObjectId;
+      type?: TransactionType;
       transactionDate?: {
         $gte?: Date;
         $lte?: Date;
@@ -158,6 +160,10 @@ export class TransactionsService {
 
     if (query.accountId) {
       filter.accountId = new Types.ObjectId(query.accountId);
+    }
+
+    if (query.transactionType) {
+      filter.type = query.transactionType;
     }
 
     if (query.fromDate || query.toDate) {
