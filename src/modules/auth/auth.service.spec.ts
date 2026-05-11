@@ -65,7 +65,6 @@ describe('AuthService', () => {
         lastName: 'Lovelace',
         email: 'Ada@Example.com',
         currency: 'USD',
-        birthDate: undefined,
         notes: undefined,
       },
       expect.any(String),
