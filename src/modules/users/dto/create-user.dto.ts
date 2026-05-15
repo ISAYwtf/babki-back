@@ -1,10 +1,4 @@
-import {
-  IsEmail,
-  IsISO4217CurrencyCode,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateUserDto {
   @IsString()
@@ -18,11 +12,8 @@ export class CreateUserDto {
   @IsEmail()
   email: string;
 
-  @IsISO4217CurrencyCode()
-  currency: string;
-
   @IsOptional()
   @IsString()
   @MaxLength(2000)
-  notes?: string;
+  description?: string;
 }

@@ -1,10 +1,4 @@
-import {
-  IsEmail,
-  IsISO4217CurrencyCode,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class UpdateUserDto {
   @IsOptional()
@@ -22,11 +16,7 @@ export class UpdateUserDto {
   email?: string;
 
   @IsOptional()
-  @IsISO4217CurrencyCode()
-  currency?: string;
-
-  @IsOptional()
   @IsString()
   @MaxLength(2000)
-  notes?: string;
+  description?: string;
 }

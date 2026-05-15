@@ -26,7 +26,7 @@ export class AuthService {
         lastName: registerDto.lastName,
         email: registerDto.email,
         currency: registerDto.currency,
-        notes: registerDto.notes,
+        description: registerDto.notes,
       },
       passwordHash,
     );
