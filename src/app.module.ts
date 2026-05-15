@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import configuration from './config/configuration';
 import { AccountsSnapshotsModule } from './modules/accounts-snapshots/accounts-snapshots.module';
 import { ExpenseLimitsModule } from './modules/expense-limits/expense-limits.module';
+import { PeriodsModule } from './modules/periods/periods.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { AuthModule } from './modules/auth/auth.module';
@@ -37,6 +38,7 @@ import { APP_GUARD } from '@nestjs/core';
     DebtsModule,
     DebtTransactionsModule,
     ExpenseLimitsModule,
+    PeriodsModule,
   ],
   controllers: [AppController],
   providers: [

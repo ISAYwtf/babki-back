@@ -79,6 +79,16 @@ export class UsersService {
     }
   }
 
+  async ensureIdExists(userId: string) {
+    const user = await this.userModel.exists({ _id: userId });
+
+    if (!user) {
+      throw new NotFoundException(`User ${userId} not found.`);
+    }
+
+    return user._id;
+  }
+
   private handleDuplicateEmail(error: unknown): never {
     if ((error as { code?: number }).code === 11000) {
       throw new ConflictException('A user with this email already exists.');

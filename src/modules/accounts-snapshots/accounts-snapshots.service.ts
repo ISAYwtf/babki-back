@@ -153,18 +153,6 @@ export class AccountsSnapshotsService {
           },
         },
       },
-      // {
-      //   $project: {
-      //     documents: {
-      //       $sortArray: {
-      //         input: '$documents',
-      //         sortBy: { date: -1, createdAt: -1 },
-      //       },
-      //     },
-      //   },
-      //   // $sort: { date: -1, createdAt: -1 },
-      // },
-      // { $limit: 20 },
     ]);
   }
 
