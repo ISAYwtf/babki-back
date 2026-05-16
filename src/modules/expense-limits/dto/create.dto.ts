@@ -1,4 +1,10 @@
-import { IsMongoId, IsNumber, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsMongoId,
+  IsNumber,
+  IsOptional,
+  Min,
+} from 'class-validator';
 
 export class CreateExpenseLimitDto {
   @IsMongoId()
@@ -7,4 +13,12 @@ export class CreateExpenseLimitDto {
   @IsNumber()
   @Min(0.01)
   total: number;
+
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
 }
