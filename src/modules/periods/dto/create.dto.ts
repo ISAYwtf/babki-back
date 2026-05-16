@@ -2,8 +2,8 @@ import { IsDateString } from 'class-validator';
 
 export class CreatePeriodDto {
   @IsDateString()
-  startDate: number;
+  startDate: string;
 
   @IsDateString()
-  endDate: number;
+  endDate: string;
 }

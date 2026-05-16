@@ -4,6 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { endOfDay, endOfMonth, startOfDay } from 'date-fns';
+import { startOfMonth } from 'date-fns/startOfMonth';
 import { Model, Types } from 'mongoose';
 import { UsersService } from '../users/users.service';
 import { CreatePeriodDto } from './dto/create.dto';
@@ -20,16 +22,23 @@ export class PeriodsService {
   ) {}
 
   async findByParams(userId: string, query: FindAllPeriodsQueryDto) {
+    const filter: {
+      userId: Types.ObjectId;
+      startDate?: { $gte: Date };
+      endDate?: { $lte: Date };
+    } = {
+      userId: new Types.ObjectId(userId),
+    };
+
+    if (query.fromDate) {
+      filter.startDate = { $gte: startOfDay(new Date(query.fromDate)) };
+    }
+    if (query.toDate) {
+      filter.endDate = { $lte: endOfDay(new Date(query.toDate)) };
+    }
+
     const entities = await this.periodModel
-      .find({
-        userId: new Types.ObjectId(userId),
-        startDate: {
-          $gte: query.fromDate ? new Date(query.fromDate) : undefined,
-        },
-        endDate: {
-          $lte: query.toDate ? new Date(query.toDate) : undefined,
-        },
-      })
+      .find(filter)
       .sort({ startDate: -1, endDate: -1, createdAt: -1 })
       .lean()
       .exec();
@@ -57,6 +66,27 @@ export class PeriodsService {
     }
 
     return entity;
+  }
+
+  async findOrCreate(userId: string, query: FindPeriodQueryDto) {
+    const date = new Date(query.date);
+    const entity = await this.periodModel
+      .findOne({
+        userId: new Types.ObjectId(userId),
+        startDate: { $lte: date },
+        endDate: { $gte: date },
+      })
+      .lean()
+      .exec();
+
+    if (entity) {
+      return entity;
+    }
+
+    return this.create(userId, {
+      startDate: startOfMonth(date).toISOString(),
+      endDate: endOfMonth(date).toISOString(),
+    });
   }
 
   async findById(userId: string, periodId: string) {
@@ -94,8 +124,8 @@ export class PeriodsService {
 
     const createdEntity = await this.periodModel.create({
       userId: foundUserId,
-      startDate,
-      endDate,
+      startDate: startOfDay(startDate),
+      endDate: endOfDay(endDate),
     });
     return createdEntity.toObject();
   }

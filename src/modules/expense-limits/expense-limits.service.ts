@@ -4,10 +4,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { endOfMonth } from 'date-fns';
-import { startOfMonth } from 'date-fns/startOfMonth';
 import { Model, Types } from 'mongoose';
 import { ExpenseCategoriesService } from '../expense-categories/expense-categories.service';
+import { PeriodsService } from '../periods/periods.service';
 import { ExpensesService } from '../transactions/expenses/expenses.service';
 import { CreateExpenseLimitDto } from './dto/create.dto';
 import { FindExpenseLimitQueryDto } from './dto/find-query.dto';
@@ -18,6 +17,19 @@ import {
   ExpenseLimitDocument,
 } from './schemas/expense-limit.schema';
 
+type FilterParams = {
+  userId: string;
+  limitId?: string;
+  categoryId?: string;
+  periodId?: string;
+};
+type FilterResult = {
+  _id?: string;
+  userId: Types.ObjectId;
+  categoryId?: Types.ObjectId;
+  periodId?: Types.ObjectId;
+};
+
 @Injectable()
 export class ExpenseLimitsService {
   constructor(
@@ -25,6 +37,7 @@ export class ExpenseLimitsService {
     private readonly expenseLimitModel: Model<ExpenseLimitDocument>,
     private readonly expensesService: ExpensesService,
     private readonly expenseCategoriesService: ExpenseCategoriesService,
+    private readonly periodsService: PeriodsService,
   ) {}
 
   async create(userId: string, createExpenseLimitDto: CreateExpenseLimitDto) {
@@ -38,16 +51,19 @@ export class ExpenseLimitsService {
       periodDate: new Date().toISOString(),
     });
 
-    if (foundLimit) {
+    if (foundLimit.length) {
       throw new ConflictException(
-        'An expense limit with this name already exists.',
+        'An expense limit on this date already exists.',
       );
     }
 
+    const period = await this.periodsService.findOrCreate(userId, {
+      date: new Date().toISOString(),
+    });
+
     const limit = await this.expenseLimitModel.create({
       ...createExpenseLimitDto,
-      startDate: startOfMonth(new Date()).toISOString(),
-      endDate: endOfMonth(new Date()).toISOString(),
+      periodId: period._id,
       categoryId: foundCategory._id,
       userId: foundCategory.userId,
     });
@@ -56,13 +72,18 @@ export class ExpenseLimitsService {
   }
 
   async findAll(userId: string, queryDto: FindExpenseLimitQueryDto) {
+    const period = await this.periodsService.findOneByDate(userId, {
+      date: queryDto.periodDate,
+    });
     const limits = await this.expenseLimitModel
-      .find({
-        userId: new Types.ObjectId(userId),
-        startDate: { $gte: queryDto.periodDate },
-        endDate: { $lte: queryDto.periodDate },
-      })
-      .sort({ startDate: -1, endDate: -1, createdAt: -1 })
+      .find(
+        this.buildFilter({
+          userId,
+          categoryId: queryDto.categoryId,
+          periodId: period._id.toString(),
+        }),
+      )
+      .sort({ createdAt: -1 })
       .lean()
       .exec();
 
@@ -71,10 +92,7 @@ export class ExpenseLimitsService {
 
   async findOne(userId: string, limitId: string) {
     const limit = await this.expenseLimitModel
-      .findOne({
-        _id: limitId,
-        userId: new Types.ObjectId(userId),
-      })
+      .findOne(this.buildFilter({ limitId, userId }))
       .lean()
       .exec();
 
@@ -121,27 +139,51 @@ export class ExpenseLimitsService {
   }
 
   private async buildResponse(limit: ExpenseLimitDocument) {
+    const period = await this.periodsService.findById(
+      limit.userId.toString(),
+      limit.periodId.toString(),
+    );
     const expenseRevenue = await this.findRevenue(limit.userId.toString(), {
-      startDate: limit.startDate,
-      endDate: limit.endDate,
+      startDate: period.startDate.toString(),
+      endDate: period.endDate.toString(),
       categoryId: limit.categoryId.toString(),
     });
 
     return {
       ...limit,
-      rest: limit.total - expenseRevenue.totalRevenue,
+      rest: limit.total - expenseRevenue,
     };
+  }
+
+  private buildFilter(params: FilterParams) {
+    const filter: FilterResult = { userId: new Types.ObjectId(params.userId) };
+    if (params.limitId) {
+      filter._id = params.limitId;
+    }
+    if (params.categoryId) {
+      filter.categoryId = new Types.ObjectId(params.categoryId);
+    }
+    if (params.periodId) {
+      filter.periodId = new Types.ObjectId(params.periodId);
+    }
+
+    return filter;
   }
 
   private async findRevenue(
     userId: string,
     queryDto: FindExpenseLimitRevenueQueryDto,
   ) {
-    return this.expensesService.findRevenue(userId, {
-      categoryId: queryDto.categoryId,
-      transactionType: 'expense',
-      fromDate: queryDto.startDate,
-      toDate: queryDto.endDate,
-    });
+    try {
+      const revenue = await this.expensesService.findRevenue(userId, {
+        categoryId: queryDto.categoryId,
+        transactionType: 'expense',
+        fromDate: queryDto.startDate,
+        toDate: queryDto.endDate,
+      });
+      return revenue.totalRevenue;
+    } catch (_) {
+      return 0;
+    }
   }
 }

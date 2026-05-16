@@ -27,7 +27,7 @@ export class PeriodsController {
     return this.periodsService.findByParams(currentUser.userId, findQueryDto);
   }
 
-  @Get(':periodId')
+  @Get('by-id/:periodId')
   findById(
     @CurrentUser() currentUser: AuthenticatedUser,
     @Param('periodId', ParseObjectIdPipe) periodId: string,
