@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AccountsSnapshotsModule } from '../accounts-snapshots/accounts-snapshots.module';
 import { TransactionsModule } from '../transactions/transactions.module';
-import { User, UserSchema } from '../users/schemas/user.schema';
+import { UsersModule } from '../users/users.module';
 import { BalancesController } from './balances/balances.controller';
 import { BalancesService } from './balances/balances.service';
 import { SavingsController } from './savings/savings.controller';
@@ -15,10 +15,10 @@ import { Saving, SavingsSchema } from './schemas/savings.schema';
 
 @Module({
   imports: [
+    UsersModule,
     AccountsSnapshotsModule,
     TransactionsModule,
     MongooseModule.forFeature([
-      { name: User.name, schema: UserSchema },
       {
         name: Account.name,
         schema: AccountsSchema,

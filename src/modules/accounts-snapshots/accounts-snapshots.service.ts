@@ -135,12 +135,23 @@ export class AccountsSnapshotsService {
   }
 
   // TODO Параметры сортировки и пагинации
-  async findAllByAccounts(accountIds: Types.ObjectId[]) {
+  async findAllByAccounts(
+    accountIds: Types.ObjectId[],
+    query?: { toDate?: string },
+  ) {
+    const filter: {
+      accountId: { $in: Types.ObjectId[] };
+      date?: { $lte: Date };
+    } = { accountId: { $in: accountIds } };
+    if (query?.toDate) {
+      filter.date = { $lte: new Date(query.toDate) };
+    }
+
     return this.snapshotsModel.aggregate<{
       _id: Types.ObjectId;
       documents: AccountSnapshotsDocument[];
     }>([
-      { $match: { accountId: { $in: accountIds } } },
+      { $match: filter },
       {
         $group: {
           _id: '$accountId',

@@ -1,10 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { AccountsSnapshotsService } from 'src/modules/accounts-snapshots/accounts-snapshots.service';
 import { AccountSnapshotsDocument } from 'src/modules/accounts-snapshots/schemas/accounts-snapshots.schema';
 import { TransactionsService } from 'src/modules/transactions/transactions/transactions.service';
-import { User, UserDocument } from 'src/modules/users/schemas/user.schema';
+import { UsersService } from '../../users/users.service';
 import { CreateAccountDto } from '../dto/create.dto';
 import { FindAccountQueryDto } from '../dto/find-query.dto';
 import {
@@ -18,13 +18,13 @@ export class AccountsService {
   constructor(
     @InjectModel(Account.name)
     private readonly accountModel: Model<AccountDocument>,
-    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    private readonly usersService: UsersService,
     private readonly snapshotsService: AccountsSnapshotsService,
     private readonly transactionService: TransactionsService,
   ) {}
 
   async findByParams(userId: string, query: FindAccountQueryDto) {
-    const foundUserId = await this.ensureUserExists(userId);
+    const foundUserId = await this.usersService.ensureIdExists(userId);
     const entities = await this.accountModel
       .find(this.buildFilter(foundUserId, query))
       .sort({ createdAt: -1 })
@@ -35,7 +35,7 @@ export class AccountsService {
       return [];
     }
 
-    return this.buildResponse(entities);
+    return this.buildResponse(entities, { toDate: query.toDate });
   }
 
   async create(
@@ -43,7 +43,7 @@ export class AccountsService {
     query: { type: AccountType },
     createAccountDto: CreateAccountDto,
   ) {
-    const foundUserId = await this.ensureUserExists(userId);
+    const foundUserId = await this.usersService.ensureIdExists(userId);
     const existingEntity = await this.accountModel
       .findOne(this.buildFilter(foundUserId, query))
       .lean();
@@ -64,14 +64,13 @@ export class AccountsService {
         date: new Date(),
       },
     );
-    return this.buildResponse(
-      [createdEntity.toObject()],
-      [{ _id: createdEntity._id, documents: [snapshot] }],
-    );
+    return this.buildResponse([createdEntity.toObject()], undefined, [
+      { _id: createdEntity._id, documents: [snapshot] },
+    ]);
   }
 
   async deleteEntity(userId: string, entityId: string) {
-    const foundUserId = await this.ensureUserExists(userId);
+    const foundUserId = await this.usersService.ensureIdExists(userId);
 
     // TODO Обернуть в транзакцию
     await this.snapshotsService.deleteAllByAccountId(userId, entityId);
@@ -84,18 +83,9 @@ export class AccountsService {
     return null;
   }
 
-  async ensureUserExists(userId: string) {
-    const exists = await this.userModel.exists({ _id: userId });
-
-    if (!exists) {
-      throw new NotFoundException(`User ${userId} not found.`);
-    }
-
-    return exists._id;
-  }
-
   async buildResponse(
     entities: AccountDocument[],
+    query?: { toDate?: string },
     existingSnapshots?: {
       _id: Types.ObjectId;
       documents: AccountSnapshotsDocument[];
@@ -105,6 +95,7 @@ export class AccountsService {
       existingSnapshots ??
       (await this.snapshotsService.findAllByAccounts(
         entities.map((entity) => entity._id),
+        query,
       ));
 
     return entities.map((entity) => {
