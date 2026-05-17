@@ -101,7 +101,8 @@ export class TransactionsService {
     ]);
 
     return {
-      ...query,
+      fromDate: query.fromDate,
+      toDate: query.toDate,
       totalRevenue: aggregate[0]?.totalRevenue ?? 0,
     };
   }
