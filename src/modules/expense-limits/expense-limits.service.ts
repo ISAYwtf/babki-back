@@ -29,7 +29,7 @@ type FilterParams = {
 type FilterResult = {
   _id?: string;
   userId: Types.ObjectId;
-  categoryId?: Types.ObjectId;
+  category?: Types.ObjectId;
   startDate?: { $lte: Date } | Date;
   endDate?: { $gte: Date } | Date;
 };
@@ -67,15 +67,17 @@ export class ExpenseLimitsService {
       createExpenseLimitDto.endDate ?? endOfMonth(new Date()),
     );
 
-    const limit = await this.expenseLimitModel.create({
-      ...createExpenseLimitDto,
-      startDate,
-      endDate,
-      categoryId: foundCategory._id,
-      userId: foundCategory.userId,
-    });
+    const limit = await (
+      await this.expenseLimitModel.create({
+        ...createExpenseLimitDto,
+        startDate,
+        endDate,
+        category: foundCategory._id,
+        userId: foundCategory.userId,
+      })
+    ).populate('category');
 
-    return this.buildResponse(limit.toObject());
+    return this.buildResponse(limit);
   }
 
   async findAll(userId: string, queryDto: FindExpenseLimitQueryDto) {
@@ -87,7 +89,8 @@ export class ExpenseLimitsService {
           periodDate: queryDto.periodDate,
         }),
       )
-      .sort({ createdAt: -1 })
+      .sort({ startDate: -1, endDate: -1, createdAt: -1 })
+      .populate('category')
       .lean()
       .exec();
 
@@ -97,6 +100,7 @@ export class ExpenseLimitsService {
   async findOne(userId: string, limitId: string) {
     const limit = await this.expenseLimitModel
       .findOne(this.buildFilter({ limitId, userId }))
+      .populate('category')
       .lean()
       .exec();
 
@@ -123,6 +127,7 @@ export class ExpenseLimitsService {
           runValidators: true,
         },
       )
+      .populate('category')
       .lean()
       .exec();
 
@@ -146,7 +151,7 @@ export class ExpenseLimitsService {
     const expenseRevenue = await this.findRevenue(limit.userId.toString(), {
       startDate: limit.startDate.toString(),
       endDate: limit.endDate.toString(),
-      categoryId: limit.categoryId.toString(),
+      categoryId: limit.category.toString(),
     });
 
     return {
@@ -161,7 +166,7 @@ export class ExpenseLimitsService {
       filter._id = params.limitId;
     }
     if (params.categoryId) {
-      filter.categoryId = new Types.ObjectId(params.categoryId);
+      filter.category = new Types.ObjectId(params.categoryId);
     }
     if (params.periodDate) {
       const date = new Date(params.periodDate);

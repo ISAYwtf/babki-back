@@ -11,7 +11,7 @@ export class ExpenseLimit {
   userId: Types.ObjectId;
 
   @Prop({ required: true, type: Types.ObjectId, ref: ExpenseCategory.name })
-  categoryId: Types.ObjectId;
+  category: Types.ObjectId;
 
   @Prop({ required: true })
   startDate: Date;
