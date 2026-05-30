@@ -13,6 +13,7 @@ import { AccountsModule } from './modules/accounts/accounts.module';
 import { DebtTransactionsModule } from './modules/debt-transactions/debt-transactions.module';
 import { DebtsModule } from './modules/debts/debts.module';
 import { ExpenseCategoriesModule } from './modules/expense-categories/expense-categories.module';
+import { ReportsModule } from './modules/reports/reports.module';
 import { UsersModule } from './modules/users/users.module';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -37,6 +38,7 @@ import { APP_GUARD } from '@nestjs/core';
     DebtsModule,
     DebtTransactionsModule,
     ExpenseLimitsModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [

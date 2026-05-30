@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
-import { User } from 'src/modules/users/schemas/user.schema';
+import { User } from '../../users/schemas/user.schema';
 
 export const accountTypes = ['balance', 'saving'] as const;
 export type AccountType = (typeof accountTypes)[number];

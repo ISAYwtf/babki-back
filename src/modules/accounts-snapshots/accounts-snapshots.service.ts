@@ -44,6 +44,21 @@ export class AccountsSnapshotsService {
     return entity;
   }
 
+  async findByUserId(userId: string, date?: string) {
+    const foundAccounts = await this.findAccounts(userId);
+    const requestedDate = date ? new Date(date) : new Date();
+
+    return this.snapshotsModel
+      .find({
+        accountId: {
+          $in: foundAccounts.map((account) => account._id),
+        },
+        date: { $lte: requestedDate },
+      })
+      .sort({ date: -1, createdAt: -1 })
+      .lean();
+  }
+
   async findOrCreateByAccountId(
     userId: string,
     accountId: string,
@@ -180,5 +195,11 @@ export class AccountsSnapshotsService {
     }
 
     return accountEntity._id;
+  }
+
+  private async findAccounts(userId: string) {
+    return this.accountsModel
+      .find({ userId: new Types.ObjectId(userId) })
+      .lean();
   }
 }

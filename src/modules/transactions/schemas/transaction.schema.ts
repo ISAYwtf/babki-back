@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
-import { AccountSnapshot } from 'src/modules/accounts-snapshots/schemas/accounts-snapshots.schema';
-import { Account } from 'src/modules/accounts/schemas/accounts.schema';
+import { AccountSnapshot } from '../../accounts-snapshots/schemas/accounts-snapshots.schema';
+import { Account } from '../../accounts/schemas/accounts.schema';
 import { User } from '../../users/schemas/user.schema';
 
 export const transactionTypes = ['income', 'expense', 'save'] as const;
