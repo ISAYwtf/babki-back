@@ -117,8 +117,8 @@ export class TransactionsService {
       throw new NotFoundException(`Transaction ${transactionId} not found`);
     }
 
-    const diffAmount =
-      transaction.type === 'income' ? -transaction.amount : transaction.amount;
+    const diffFactor = ['save', 'income'].includes(transaction.type) ? -1 : 1;
+    const diffAmount = transaction.amount * diffFactor;
 
     await this.snapshotService.recalculateSnapshotsFromDate(
       userId,
@@ -126,6 +126,14 @@ export class TransactionsService {
       { date: transaction.transactionDate.toISOString() },
       { amount: diffAmount },
     );
+    if (transaction.type === 'save' && 'sourceAccountId' in transaction) {
+      await this.snapshotService.recalculateSnapshotsFromDate(
+        userId,
+        (transaction.sourceAccountId as Types.ObjectId).toString(),
+        { date: transaction.transactionDate.toISOString() },
+        { amount: transaction.amount },
+      );
+    }
 
     return null;
   }

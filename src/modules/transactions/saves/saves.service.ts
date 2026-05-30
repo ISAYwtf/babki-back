@@ -28,6 +28,7 @@ export class SavesService {
     );
     const transactionDate =
       createSaveDto.transactionDate ?? new Date().toISOString();
+    // TODO Обернуть в транзакцию
     const foundSnapshot = await this.snapshotsService.findOrCreateByAccountId(
       userId,
       foundIds.accountId.toString(),
@@ -40,7 +41,7 @@ export class SavesService {
       );
     }
 
-    const sourceSnapshot = await this.snapshotsService.findByAccountId(
+    const sourceSnapshot = await this.snapshotsService.findOrCreateByAccountId(
       userId,
       createSaveDto.sourceAccountId,
       createSaveDto.transactionDate,
@@ -56,7 +57,6 @@ export class SavesService {
       throw new BadRequestException('Insufficient funds');
     }
 
-    // TODO Обернуть в транзакцию
     const createdSave = await this.saveModel.create({
       userId: foundIds.userId,
       accountId: foundIds.accountId,
