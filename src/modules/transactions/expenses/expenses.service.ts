@@ -162,8 +162,8 @@ export class ExpensesService {
 
     // TODO Проверить с пустыми значениями для удаления
     const updatedExpense = await this.expenseModel
-      .findByIdAndUpdate(
-        expenseId,
+      .findOneAndUpdate(
+        { _id: expenseId, userId: new Types.ObjectId(userId) },
         { $set: updatePayload },
         {
           returnDocument: 'after',

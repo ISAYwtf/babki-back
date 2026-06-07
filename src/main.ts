@@ -39,4 +39,7 @@ async function bootstrap() {
     'Bootstrap',
   );
 }
-void bootstrap();
+bootstrap().catch((err: unknown) => {
+  console.error('Fatal startup error', err);
+  process.exit(1);
+});

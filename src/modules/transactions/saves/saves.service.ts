@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { AccountsSnapshotsService } from '../../accounts-snapshots/accounts-snapshots.service';
 import { ListTransactionsQueryDto } from '../dto/list-transactions-query.dto';
 import { Save, SaveDocument } from '../schemas/save.schema';
@@ -162,8 +162,8 @@ export class SavesService {
 
     // TODO Проверить с пустыми значениями для удаления
     const updatedSave = await this.saveModel
-      .findByIdAndUpdate(
-        transactionId,
+      .findOneAndUpdate(
+        { _id: transactionId, userId: new Types.ObjectId(userId) },
         { $set: updatePayload },
         {
           returnDocument: 'after',

@@ -67,10 +67,14 @@ export default () => {
   const secrets = readSecretsFile(secretsFilePath);
   const jwtSecret = process.env.JWT_SECRET ?? secrets.JWT_SECRET;
 
-  if (!jwtSecret && process.env.NODE_ENV === 'production') {
+  if (!jwtSecret) {
     throw new Error(
       'JWT_SECRET must be defined in the environment or secrets file.',
     );
+  }
+
+  if (jwtSecret.length < 32) {
+    throw new Error('JWT_SECRET must be at least 32 characters long.');
   }
 
   return {
@@ -84,7 +88,7 @@ export default () => {
       uri: buildMongoUri(secrets, databaseName),
     },
     jwt: {
-      secret: jwtSecret ?? 'local-development-jwt-secret',
+      secret: jwtSecret,
       expiresIn: process.env.JWT_EXPIRES_IN ?? secrets.JWT_EXPIRES_IN ?? '60m',
     },
   };

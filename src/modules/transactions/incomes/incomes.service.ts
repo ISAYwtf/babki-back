@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { AccountsSnapshotsService } from '../../accounts-snapshots/accounts-snapshots.service';
 import { ListTransactionsQueryDto } from '../dto/list-transactions-query.dto';
 import { TransactionsService } from '../transactions/transactions.service';
@@ -96,8 +96,8 @@ export class IncomesService {
 
     // TODO Проверить с пустыми значениями для удаления
     const updatedIncome = await this.incomeModel
-      .findByIdAndUpdate(
-        transactionId,
+      .findOneAndUpdate(
+        { _id: transactionId, userId: new Types.ObjectId(userId) },
         { $set: updatePayload },
         {
           returnDocument: 'after',

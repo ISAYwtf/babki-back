@@ -110,8 +110,10 @@ export class TransactionsService {
   // TODO Обернуть в транзакцию
   async delete(userId: string, transactionId: string) {
     await this.ensureUserExists(userId);
-    const transaction =
-      await this.transactionModel.findByIdAndDelete(transactionId);
+    const transaction = await this.transactionModel.findOneAndDelete({
+      _id: transactionId,
+      userId: new Types.ObjectId(userId),
+    });
 
     if (!transaction) {
       throw new NotFoundException(`Transaction ${transactionId} not found`);

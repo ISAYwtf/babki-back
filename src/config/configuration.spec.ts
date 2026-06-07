@@ -22,6 +22,7 @@ describe('configuration', () => {
         MONGO_USER: 'finance-user',
         MONGO_PASSWORD: 'strong-pass',
         MONGO_AUTH_SOURCE: 'admin',
+        JWT_SECRET: 'test-jwt-secret-at-least-32-chars!!',
       }),
     );
 
@@ -48,6 +49,7 @@ describe('configuration', () => {
       secretsPath,
       JSON.stringify({
         MONGO_URI: 'mongodb://localhost:27017/custom-db',
+        JWT_SECRET: 'test-jwt-secret-at-least-32-chars!!',
       }),
     );
 
