@@ -105,10 +105,11 @@ export class ReportsService {
 
   private async findFirstSnapshotDateInYear(userId: string) {
     const snapshots = await this.snapshotsService.findByUserId(userId);
-    const firstSnapshotDate = snapshots[0].date ?? null;
+    const firstSnapshotDate = snapshots[0]?.date ?? null;
+
     const startOfYearDate = startOfYear(new Date());
 
-    if (isAfter(startOfYearDate, firstSnapshotDate)) {
+    if (!firstSnapshotDate || isAfter(startOfYearDate, firstSnapshotDate)) {
       return startOfYearDate;
     }
 

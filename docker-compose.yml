@@ -15,27 +15,25 @@ services:
     ports:
       - "5001:5001"
     volumes:
-      # Mount runtime DB settings as read-only instead of baking them into the image.
       - ./config/secrets/docker-compose.json:/app/config/secrets/docker-compose.json:ro
     develop:
       watch:
-        # Rebuild image when app source changes because runtime image executes compiled /app/dist.
         - action: rebuild
           path: ./src
           ignore:
             - node_modules/
     depends_on:
-      mongo:
-        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
 
   mongo:
     image: mongo:7
     container_name: babki-back-mongo
     restart: unless-stopped
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     ports:
       - "27017:27017"
     volumes:
-      # Persist MongoDB data across container restarts.
       - mongo_data:/data/db
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
@@ -43,6 +41,18 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  mongo-init:
+    image: mongo:7
+    container_name: babki-back-mongo-init
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: >
+      mongosh --host mongo --quiet --eval
+      "try { rs.status() } catch(e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]}) };
+      let i=0; while(!db.isMaster().ismaster && i++<30){ sleep(500); }"
 
 volumes:
   mongo_data:

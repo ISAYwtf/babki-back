@@ -6,7 +6,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { plainToInstance } from 'class-transformer';
 import { startOfMonth } from 'date-fns/startOfMonth';
-import { Model, Types } from 'mongoose';
+import { ClientSession, Model, Types } from 'mongoose';
 import { Account, AccountDocument } from '../accounts/schemas/accounts.schema';
 import { CreateAccountSnapshotDto } from './dto/create.dto';
 import { UpdateAccountSnapshotQueryDto } from './dto/update-query.dto';
@@ -63,6 +63,7 @@ export class AccountsSnapshotsService {
     userId: string,
     accountId: string,
     date?: string,
+    session?: ClientSession,
   ) {
     const foundSnapshot = await this.findByAccountId(userId, accountId, date);
     const resolvedDate = date ? new Date(date) : new Date();
@@ -70,11 +71,16 @@ export class AccountsSnapshotsService {
       !foundSnapshot ||
       foundSnapshot.date.getMonth() !== resolvedDate.getMonth()
     ) {
-      const createdSnapshot = await this.snapshotsModel.create({
-        accountId: new Types.ObjectId(accountId),
-        amount: foundSnapshot?.amount ?? 0,
-        date: startOfMonth(resolvedDate),
-      });
+      const [createdSnapshot] = await this.snapshotsModel.create(
+        [
+          {
+            accountId: new Types.ObjectId(accountId),
+            amount: foundSnapshot?.amount ?? 0,
+            date: startOfMonth(resolvedDate),
+          },
+        ],
+        { session },
+      );
       return createdSnapshot.toObject();
     }
     return foundSnapshot;
@@ -113,6 +119,7 @@ export class AccountsSnapshotsService {
     accountId: string,
     queryDto: UpdateAccountSnapshotQueryDto,
     updateDto: UpdateAccountSnapshotDto,
+    session?: ClientSession,
   ) {
     const entity = await this.snapshotsModel
       .findOne({
@@ -120,6 +127,7 @@ export class AccountsSnapshotsService {
         date: { $lte: queryDto.date },
       })
       .sort({ date: -1, createdAt: -1 })
+      .session(session ?? null)
       .lean()
       .exec();
 
@@ -140,13 +148,20 @@ export class AccountsSnapshotsService {
           },
         },
       ],
-      { updatePipeline: true, runValidators: true },
+      { updatePipeline: true, runValidators: true, session },
     );
   }
 
-  async deleteAllByAccountId(userId: string, accountId: string) {
+  async deleteAllByAccountId(
+    userId: string,
+    accountId: string,
+    session?: ClientSession,
+  ) {
     const foundAccountId = await this.ensureAccountExists(userId, accountId);
-    await this.snapshotsModel.deleteMany({ accountId: foundAccountId });
+    await this.snapshotsModel.deleteMany(
+      { accountId: foundAccountId },
+      { session },
+    );
   }
 
   // TODO Параметры сортировки и пагинации

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { Connection, Model, Types } from 'mongoose';
 import { AccountsSnapshotsService } from 'src/modules/accounts-snapshots/accounts-snapshots.service';
 import { getPagination } from 'src/common/utils/pagination.util';
 import {
@@ -23,6 +23,7 @@ export class ExpensesService {
     private readonly expenseCategoryModel: Model<ExpenseCategoryDocument>,
     private readonly snapshotsService: AccountsSnapshotsService,
     private readonly transactionsService: TransactionsService,
+    @InjectConnection() private readonly connection: Connection,
   ) {}
 
   async create(userId: string, createExpenseDto: CreateExpenseDto) {
@@ -30,37 +31,53 @@ export class ExpensesService {
       this.transactionsService.ensureUserExists(userId),
       this.ensureCategoryExists(userId, createExpenseDto.categoryId),
     ]);
-    const foundSnapshot = await this.snapshotsService.findOrCreateByAccountId(
-      userId,
-      foundIds.accountId.toString(),
-      createExpenseDto.transactionDate,
-    );
 
-    if (!foundSnapshot) {
-      throw new NotFoundException(
-        `Snapshot for account ${foundIds.accountId.toString()} not found.`,
-      );
+    const session = await this.connection.startSession();
+    try {
+      return await session.withTransaction(async () => {
+        const foundSnapshot =
+          await this.snapshotsService.findOrCreateByAccountId(
+            userId,
+            foundIds.accountId.toString(),
+            createExpenseDto.transactionDate,
+            session,
+          );
+
+        if (!foundSnapshot) {
+          throw new NotFoundException(
+            `Snapshot for account ${foundIds.accountId.toString()} not found.`,
+          );
+        }
+
+        const [expense] = await this.expenseModel.create(
+          [
+            {
+              userId: foundIds.userId,
+              accountId: foundIds.accountId,
+              snapshotId: foundSnapshot._id,
+              category: foundCategoryId,
+              amount: createExpenseDto.amount,
+              transactionDate: createExpenseDto.transactionDate,
+              description: createExpenseDto.description,
+              merchant: createExpenseDto.merchant,
+              items: createExpenseDto.items ?? [],
+            },
+          ],
+          { session },
+        );
+        await this.snapshotsService.recalculateSnapshotsFromDate(
+          userId,
+          foundSnapshot.accountId.toString(),
+          { date: createExpenseDto.transactionDate },
+          { amount: -createExpenseDto.amount },
+          session,
+        );
+
+        return expense.populate('category');
+      });
+    } finally {
+      await session.endSession();
     }
-
-    const expense = await this.expenseModel.create({
-      userId: foundIds.userId,
-      accountId: foundIds.accountId,
-      snapshotId: foundSnapshot._id,
-      category: foundCategoryId,
-      amount: createExpenseDto.amount,
-      transactionDate: createExpenseDto.transactionDate,
-      description: createExpenseDto.description,
-      merchant: createExpenseDto.merchant,
-      items: createExpenseDto.items ?? [],
-    });
-    await this.snapshotsService.recalculateSnapshotsFromDate(
-      userId,
-      foundSnapshot.accountId.toString(),
-      { date: createExpenseDto.transactionDate },
-      { amount: -createExpenseDto.amount },
-    );
-
-    return expense.populate('category');
   }
 
   // TODO Добавить сортировку в DTO
@@ -125,7 +142,6 @@ export class ExpensesService {
     );
   }
 
-  // TODO Обернуть в транзакцию
   async update(
     userId: string,
     expenseId: string,
@@ -150,36 +166,45 @@ export class ExpensesService {
       }).filter(([, value]) => value !== undefined),
     );
 
-    if (updateExpenseDto.amount) {
-      const diffAmount = updateExpenseDto.amount - expense.amount;
-      await this.snapshotsService.recalculateSnapshotsFromDate(
-        userId,
-        expense.accountId.toString(),
-        { date: expense.transactionDate.toISOString() },
-        { amount: diffAmount },
-      );
+    const session = await this.connection.startSession();
+    try {
+      return await session.withTransaction(async () => {
+        if (updateExpenseDto.amount) {
+          const diffAmount = updateExpenseDto.amount - expense.amount;
+          await this.snapshotsService.recalculateSnapshotsFromDate(
+            userId,
+            expense.accountId.toString(),
+            { date: expense.transactionDate.toISOString() },
+            { amount: diffAmount },
+            session,
+          );
+        }
+
+        // TODO Проверить с пустыми значениями для удаления
+        const updatedExpense = await this.expenseModel
+          .findOneAndUpdate(
+            { _id: expenseId, userId: new Types.ObjectId(userId) },
+            { $set: updatePayload },
+            {
+              returnDocument: 'after',
+              runValidators: true,
+              session,
+            },
+          )
+          .populate('category')
+          .lean();
+
+        if (!updatedExpense) {
+          throw new NotFoundException(
+            `Expense ${expenseId} for user ${userId} not found.`,
+          );
+        }
+
+        return updatedExpense;
+      });
+    } finally {
+      await session.endSession();
     }
-
-    // TODO Проверить с пустыми значениями для удаления
-    const updatedExpense = await this.expenseModel
-      .findOneAndUpdate(
-        { _id: expenseId, userId: new Types.ObjectId(userId) },
-        { $set: updatePayload },
-        {
-          returnDocument: 'after',
-          runValidators: true,
-        },
-      )
-      .populate('category')
-      .lean();
-
-    if (!updatedExpense) {
-      throw new NotFoundException(
-        `Expense ${expenseId} for user ${userId} not found.`,
-      );
-    }
-
-    return updatedExpense;
   }
 
   private buildFilter(

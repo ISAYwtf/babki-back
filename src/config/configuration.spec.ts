@@ -62,4 +62,60 @@ describe('configuration', () => {
 
     rmSync(tempDir, { recursive: true, force: true });
   });
+
+  it('appends replicaSet params with ? separator when no auth query string exists', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'babki-config-'));
+    const secretsPath = join(tempDir, 'secrets.json');
+
+    writeFileSync(
+      secretsPath,
+      JSON.stringify({
+        MONGO_AUTH_ENABLED: false,
+        MONGO_HOST: '127.0.0.1',
+        MONGO_PORT: 27017,
+        MONGO_REPLICA_SET: 'rs0',
+        JWT_SECRET: 'test-jwt-secret-at-least-32-chars!!',
+      }),
+    );
+
+    process.env.MONGO_DB_NAME = 'finance-db';
+    process.env.SECRETS_FILE_PATH = relative(process.cwd(), secretsPath);
+
+    const result = configuration();
+
+    expect(result.mongo.uri).toBe(
+      'mongodb://127.0.0.1:27017/finance-db?replicaSet=rs0&directConnection=true',
+    );
+
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('appends replicaSet params with & separator when auth query string already exists', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'babki-config-'));
+    const secretsPath = join(tempDir, 'secrets.json');
+
+    writeFileSync(
+      secretsPath,
+      JSON.stringify({
+        MONGO_HOST: '127.0.0.1',
+        MONGO_PORT: 27018,
+        MONGO_USER: 'finance-user',
+        MONGO_PASSWORD: 'strong-pass',
+        MONGO_AUTH_SOURCE: 'admin',
+        MONGO_REPLICA_SET: 'rs0',
+        JWT_SECRET: 'test-jwt-secret-at-least-32-chars!!',
+      }),
+    );
+
+    process.env.MONGO_DB_NAME = 'finance-db';
+    process.env.SECRETS_FILE_PATH = relative(process.cwd(), secretsPath);
+
+    const result = configuration();
+
+    expect(result.mongo.uri).toBe(
+      'mongodb://finance-user:strong-pass@127.0.0.1:27018/finance-db?authSource=admin&replicaSet=rs0&directConnection=true',
+    );
+
+    rmSync(tempDir, { recursive: true, force: true });
+  });
 });

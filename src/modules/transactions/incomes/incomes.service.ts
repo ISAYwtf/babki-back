@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { ClientSession, Connection, Model, Types } from 'mongoose';
 import { AccountsSnapshotsService } from '../../accounts-snapshots/accounts-snapshots.service';
 import { ListTransactionsQueryDto } from '../dto/list-transactions-query.dto';
 import { TransactionsService } from '../transactions/transactions.service';
@@ -15,14 +15,36 @@ export class IncomesService {
     private readonly incomeModel: Model<IncomeDocument>,
     private readonly snapshotsService: AccountsSnapshotsService,
     private readonly transactionsService: TransactionsService,
+    @InjectConnection() private readonly connection: Connection,
   ) {}
 
-  async create(userId: string, createIncomeDto: CreateIncomeDto) {
+  async create(
+    userId: string,
+    createIncomeDto: CreateIncomeDto,
+    session?: ClientSession,
+  ) {
+    if (session) return this._doCreate(userId, createIncomeDto, session);
+    const s = await this.connection.startSession();
+    try {
+      return await s.withTransaction(() =>
+        this._doCreate(userId, createIncomeDto, s),
+      );
+    } finally {
+      await s.endSession();
+    }
+  }
+
+  private async _doCreate(
+    userId: string,
+    createIncomeDto: CreateIncomeDto,
+    session: ClientSession,
+  ) {
     const foundIds = await this.transactionsService.ensureUserExists(userId);
     const foundSnapshot = await this.snapshotsService.findOrCreateByAccountId(
       userId,
       foundIds.accountId.toString(),
       createIncomeDto.transactionDate,
+      session,
     );
 
     if (!foundSnapshot) {
@@ -31,18 +53,23 @@ export class IncomesService {
       );
     }
 
-    // TODO Обернуть в транзакцию
-    const createdIncome = await this.incomeModel.create({
-      userId: foundIds.userId,
-      accountId: foundIds.accountId,
-      snapshotId: foundSnapshot._id,
-      ...createIncomeDto,
-    });
+    const [createdIncome] = await this.incomeModel.create(
+      [
+        {
+          userId: foundIds.userId,
+          accountId: foundIds.accountId,
+          snapshotId: foundSnapshot._id,
+          ...createIncomeDto,
+        },
+      ],
+      { session },
+    );
     await this.snapshotsService.recalculateSnapshotsFromDate(
       userId,
       foundSnapshot.accountId.toString(),
       { date: createIncomeDto.transactionDate },
       { amount: createIncomeDto.amount },
+      session,
     );
 
     return createdIncome.toJSON();
@@ -64,7 +91,6 @@ export class IncomesService {
     return this.transactionsService.findOne(userId, incomeId, this.incomeModel);
   }
 
-  // TODO Обернуть в транзакцию
   async update(
     userId: string,
     transactionId: string,
@@ -84,34 +110,42 @@ export class IncomesService {
       }).filter(([, value]) => value !== undefined),
     );
 
-    if (updateIncomeDto.amount) {
-      const diffAmount = updateIncomeDto.amount - income.amount;
-      await this.snapshotsService.recalculateSnapshotsFromDate(
-        userId,
-        income.accountId.toString(),
-        { date: income.transactionDate.toISOString() },
-        { amount: diffAmount },
-      );
+    const session = await this.connection.startSession();
+    try {
+      return await session.withTransaction(async () => {
+        if (updateIncomeDto.amount) {
+          const diffAmount = updateIncomeDto.amount - income.amount;
+          await this.snapshotsService.recalculateSnapshotsFromDate(
+            userId,
+            income.accountId.toString(),
+            { date: income.transactionDate.toISOString() },
+            { amount: diffAmount },
+            session,
+          );
+        }
+
+        const updatedIncome = await this.incomeModel
+          .findOneAndUpdate(
+            { _id: transactionId, userId: new Types.ObjectId(userId) },
+            { $set: updatePayload },
+            {
+              returnDocument: 'after',
+              runValidators: true,
+              session,
+            },
+          )
+          .lean();
+
+        if (!updatedIncome) {
+          throw new NotFoundException(
+            `Income ${transactionId} for user ${userId} not found.`,
+          );
+        }
+
+        return updatedIncome;
+      });
+    } finally {
+      await session.endSession();
     }
-
-    // TODO Проверить с пустыми значениями для удаления
-    const updatedIncome = await this.incomeModel
-      .findOneAndUpdate(
-        { _id: transactionId, userId: new Types.ObjectId(userId) },
-        { $set: updatePayload },
-        {
-          returnDocument: 'after',
-          runValidators: true,
-        },
-      )
-      .lean();
-
-    if (!updatedIncome) {
-      throw new NotFoundException(
-        `Income ${transactionId} for user ${userId} not found.`,
-      );
-    }
-
-    return updatedIncome;
   }
 }

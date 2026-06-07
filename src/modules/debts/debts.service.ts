@@ -3,8 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { Connection, Model, Types } from 'mongoose';
 import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
 import { getPagination } from '../../common/utils/pagination.util';
 import { IncomesService } from '../transactions/incomes/incomes.service';
@@ -27,6 +27,7 @@ export class DebtsService {
     @InjectModel(DebtTransaction.name)
     private readonly debtTransactionModel: Model<DebtTransactionDocument>,
     private readonly incomeService: IncomesService,
+    @InjectConnection() private readonly connection: Connection,
   ) {}
 
   async create(userId: string, createDebtDto: CreateDebtDto) {
@@ -148,62 +149,86 @@ export class DebtsService {
       );
     }
 
-    await this.debtTransactionModel.create({
-      userId: new Types.ObjectId(userId),
-      debtId: new Types.ObjectId(debtId),
-      transactionDate: repayDebtDto.repaymentDate,
-      amount: repayDebtDto.amount,
-      description: repayDebtDto.description,
-    });
-    if (repayDebtDto.isIncome) {
-      await this.incomeService.create(userId, {
-        amount: repayDebtDto.amount,
-        transactionDate: repayDebtDto.repaymentDate,
-        description: repayDebtDto.description,
-        source: `Погашение долга ${currentDebt.debtor}`,
+    const session = await this.connection.startSession();
+    try {
+      return await session.withTransaction(async () => {
+        await this.debtTransactionModel.create(
+          [
+            {
+              userId: new Types.ObjectId(userId),
+              debtId: new Types.ObjectId(debtId),
+              transactionDate: repayDebtDto.repaymentDate,
+              amount: repayDebtDto.amount,
+              description: repayDebtDto.description,
+            },
+          ],
+          { session },
+        );
+        if (repayDebtDto.isIncome) {
+          await this.incomeService.create(
+            userId,
+            {
+              amount: repayDebtDto.amount,
+              transactionDate: repayDebtDto.repaymentDate,
+              description: repayDebtDto.description,
+              source: `Погашение долга ${currentDebt.debtor}`,
+            },
+            session,
+          );
+        }
+
+        const remainingAmount =
+          Math.round(
+            (currentDebt.remainingAmount - repayDebtDto.amount) * 100,
+          ) / 100;
+        const status = remainingAmount === 0 ? 'closed' : currentDebt.status;
+
+        const debt = await this.debtModel
+          .findOneAndUpdate(
+            { _id: debtId, userId: foundUserId },
+            { remainingAmount, status },
+            { returnDocument: 'after', runValidators: true, session },
+          )
+          .lean()
+          .exec();
+
+        if (!debt) {
+          throw new NotFoundException(
+            `Debt ${debtId} for user ${userId} not found.`,
+          );
+        }
+
+        return debt;
       });
+    } finally {
+      await session.endSession();
     }
-
-    const remainingAmount =
-      Math.round((currentDebt.remainingAmount - repayDebtDto.amount) * 100) /
-      100;
-    const status = remainingAmount === 0 ? 'closed' : currentDebt.status;
-
-    const debt = await this.debtModel
-      .findOneAndUpdate(
-        { _id: debtId, userId: foundUserId },
-        { remainingAmount, status },
-        { returnDocument: 'after', runValidators: true },
-      )
-      .lean()
-      .exec();
-
-    if (!debt) {
-      throw new NotFoundException(
-        `Debt ${debtId} for user ${userId} not found.`,
-      );
-    }
-
-    return debt;
   }
 
   async remove(userId: string, debtId: string) {
     const foundUserId = await this.ensureUserExists(userId);
 
-    const deletedDebt = await this.debtModel
-      .findOneAndDelete({ _id: debtId, userId: foundUserId })
-      .exec();
+    const session = await this.connection.startSession();
+    try {
+      return await session.withTransaction(async () => {
+        const deletedDebt = await this.debtModel
+          .findOneAndDelete({ _id: debtId, userId: foundUserId }, { session })
+          .exec();
 
-    if (!deletedDebt) {
-      throw new NotFoundException(
-        `Debt ${debtId} for user ${userId} not found.`,
-      );
+        if (!deletedDebt) {
+          throw new NotFoundException(
+            `Debt ${debtId} for user ${userId} not found.`,
+          );
+        }
+
+        await this.debtTransactionModel.deleteMany(
+          { userId: foundUserId, debtId: new Types.ObjectId(debtId) },
+          { session },
+        );
+      });
+    } finally {
+      await session.endSession();
     }
-
-    await this.debtTransactionModel.deleteMany({
-      userId: foundUserId,
-      debtId: new Types.ObjectId(debtId),
-    });
   }
 
   private async ensureUserExists(userId: string) {

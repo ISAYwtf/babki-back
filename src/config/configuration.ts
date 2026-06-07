@@ -11,6 +11,7 @@ type SecretsFile = {
   MONGO_USER?: string;
   MONGO_PASSWORD?: string;
   MONGO_AUTH_SOURCE?: string;
+  MONGO_REPLICA_SET?: string;
 };
 
 function readSecretsFile(filePath: string): SecretsFile {
@@ -25,6 +26,8 @@ function readSecretsFile(filePath: string): SecretsFile {
 
 function buildMongoUri(secrets: SecretsFile, databaseName: string): string {
   if (secrets.MONGO_URI) {
+    // When MONGO_URI is provided directly, MONGO_REPLICA_SET is not applied.
+    // Include replica set params in MONGO_URI itself if needed.
     return secrets.MONGO_URI;
   }
 
@@ -38,17 +41,28 @@ function buildMongoUri(secrets: SecretsFile, databaseName: string): string {
     secrets.MONGO_AUTH_ENABLED ??
     Boolean(secrets.MONGO_USER || secrets.MONGO_PASSWORD);
 
+  let uri: string;
+
   if (!mongoAuthEnabled) {
-    return `mongodb://${host}:${port}/${databaseName}`;
+    uri = `mongodb://${host}:${port}/${databaseName}`;
+  } else {
+    if (!encodedUser || !encodedPassword) {
+      throw new Error(
+        'MongoDB configuration is invalid. Provide MONGO_URI or MONGO_USER/MONGO_PASSWORD in the secrets file.',
+      );
+    }
+    uri = `mongodb://${encodedUser}:${encodedPassword}@${host}:${port}/${databaseName}?authSource=${authSource}`;
   }
 
-  if (!encodedUser || !encodedPassword) {
-    throw new Error(
-      'MongoDB configuration is invalid. Provide MONGO_URI or MONGO_USER/MONGO_PASSWORD in the secrets file.',
-    );
+  if (secrets.MONGO_REPLICA_SET) {
+    const separator = uri.includes('?') ? '&' : '?';
+    // directConnection=true routes to the single host and skips member discovery.
+    // This is correct for single-node replica sets (dev/Docker) but must not be
+    // used against multi-node production clusters, as it disables automatic failover.
+    uri += `${separator}replicaSet=${secrets.MONGO_REPLICA_SET}&directConnection=true`;
   }
 
-  return `mongodb://${encodedUser}:${encodedPassword}@${host}:${port}/${databaseName}?authSource=${authSource}`;
+  return uri;
 }
 
 export default () => {
