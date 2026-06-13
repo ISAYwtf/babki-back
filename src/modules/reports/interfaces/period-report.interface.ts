@@ -1,3 +1,8 @@
+export interface CategoryExpense {
+  categoryId: string;
+  total: number;
+}
+
 export interface PeriodReport {
   period: string;
   expenses: number;
@@ -5,4 +10,5 @@ export interface PeriodReport {
   saves: number;
   saving: number;
   balance: number;
+  expensesByCategory: CategoryExpense[];
 }

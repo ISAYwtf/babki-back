@@ -2,6 +2,7 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
 import { MonthlyReportsQueryDto } from './dto/monthly-reports-query.dto';
+import { ReportsQueryDto } from './dto/reports-query.dto';
 import { ReportsService } from './reports.service';
 
 @Controller('reports')
@@ -17,7 +18,10 @@ export class ReportsController {
   }
 
   @Get('years')
-  findYearly(@CurrentUser() currentUser: AuthenticatedUser) {
-    return this.reportsService.findYearly(currentUser.userId);
+  findYearly(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Query() query: ReportsQueryDto,
+  ) {
+    return this.reportsService.findYearly(currentUser.userId, query);
   }
 }
