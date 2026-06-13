@@ -11,11 +11,11 @@ export async function seedLimits(
 
   await limitsService.create(userId, {
     categoryId: categories['Food & Dining'],
-    total: 500,
+    total: 65000,
   });
 
   await limitsService.create(userId, {
     categoryId: categories['Entertainment'],
-    total: 200,
+    total: 25000,
   });
 }

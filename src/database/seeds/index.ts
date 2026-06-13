@@ -7,6 +7,7 @@ import { seedCategories } from './03-categories';
 import { seedTransactions } from './05-transactions';
 import { seedLimits } from './04-limits';
 import { seedDebts } from './06-debts';
+import { seedPlans } from './07-plans';
 
 const COLLECTIONS = [
   'users',
@@ -17,6 +18,7 @@ const COLLECTIONS = [
   'expenselimits',
   'debts',
   'debttransactions',
+  'plans',
 ];
 
 async function clearDatabase(connection: Connection) {
@@ -44,11 +46,14 @@ export async function runSeeders(app: INestApplicationContext) {
   );
 
   await seedTransactions(app, userId, balanceAccountId, categories);
-  console.log('💸 Transactions seeded  (19 total)');
+  console.log('💸 Transactions seeded  (97 total)');
 
   await seedLimits(app, userId, categories);
   console.log('📊 Limits seeded  (2 total)');
 
   await seedDebts(app, userId);
   console.log('💳 Debts seeded  (2 total)');
+
+  await seedPlans(app, userId, categories);
+  console.log('📋 Plans seeded  (7 total)');
 }
