@@ -15,6 +15,7 @@ import { DebtsModule } from './modules/debts/debts.module';
 import { ExpenseCategoriesModule } from './modules/expense-categories/expense-categories.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { UsersModule } from './modules/users/users.module';
+import { PlansModule } from './modules/plans/plans.module';
 import { APP_GUARD } from '@nestjs/core';
 
 @Module({
@@ -35,6 +36,7 @@ import { APP_GUARD } from '@nestjs/core';
     AccountsSnapshotsModule,
     TransactionsModule,
     ExpenseCategoriesModule,
+    PlansModule,
     DebtsModule,
     DebtTransactionsModule,
     ExpenseLimitsModule,
