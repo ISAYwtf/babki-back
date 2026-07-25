@@ -46,7 +46,7 @@ export async function runSeeders(app: INestApplicationContext) {
   );
 
   await seedTransactions(app, userId, balanceAccountId, categories);
-  console.log('💸 Transactions seeded  (97 total)');
+  console.log('💸 Transactions seeded  (108 total)');
 
   await seedLimits(app, userId, categories);
   console.log('📊 Limits seeded  (2 total)');

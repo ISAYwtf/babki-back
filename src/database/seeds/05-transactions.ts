@@ -614,7 +614,7 @@ export async function seedTransactions(
     description: 'Monthly savings',
   });
 
-  // ── June 2026 (current, partial) ─────────────────────────────────────────────
+  // ── June 2026 ────────────────────────────────────────────────────────────────
   await incomes.create(userId, {
     amount: 350000,
     transactionDate: '2026-06-01T00:00:00.000Z',
@@ -632,5 +632,73 @@ export async function seedTransactions(
     categoryId: categories['Transport'],
     transactionDate: '2026-06-05T00:00:00.000Z',
     description: 'Taxi',
+  });
+  await expenses.create(userId, {
+    amount: 21000,
+    categoryId: categories['Utilities'],
+    transactionDate: '2026-06-12T00:00:00.000Z',
+    description: 'Internet + electricity',
+  });
+  await expenses.create(userId, {
+    amount: 18000,
+    categoryId: categories['Health'],
+    transactionDate: '2026-06-18T00:00:00.000Z',
+    description: 'Pharmacy',
+  });
+  await expenses.create(userId, {
+    amount: 14000,
+    categoryId: categories['Entertainment'],
+    transactionDate: '2026-06-22T00:00:00.000Z',
+    description: 'Cinema and subscriptions',
+  });
+  await saves.create(userId, {
+    amount: 50000,
+    sourceAccountId: balanceAccountId,
+    transactionDate: '2026-06-28T00:00:00.000Z',
+    description: 'Monthly savings',
+  });
+
+  // ── July 2026 (current, through July 25) ─────────────────────────────────────
+  await incomes.create(userId, {
+    amount: 350000,
+    transactionDate: '2026-07-01T00:00:00.000Z',
+    description: 'Salary',
+    source: 'Employer',
+  });
+  await expenses.create(userId, {
+    amount: 52000,
+    categoryId: categories['Food & Dining'],
+    transactionDate: '2026-07-07T00:00:00.000Z',
+    description: 'Groceries + restaurants',
+  });
+  await expenses.create(userId, {
+    amount: 18000,
+    categoryId: categories['Transport'],
+    transactionDate: '2026-07-11T00:00:00.000Z',
+    description: 'Monthly transit pass + taxi',
+  });
+  await expenses.create(userId, {
+    amount: 23000,
+    categoryId: categories['Utilities'],
+    transactionDate: '2026-07-16T00:00:00.000Z',
+    description: 'Internet + electricity',
+  });
+  await expenses.create(userId, {
+    amount: 18000,
+    categoryId: categories['Entertainment'],
+    transactionDate: '2026-07-20T00:00:00.000Z',
+    description: 'Cinema and subscriptions',
+  });
+  await expenses.create(userId, {
+    amount: 32000,
+    categoryId: categories['Shopping'],
+    transactionDate: '2026-07-24T00:00:00.000Z',
+    description: 'Summer clothes',
+  });
+  await saves.create(userId, {
+    amount: 50000,
+    sourceAccountId: balanceAccountId,
+    transactionDate: '2026-07-25T00:00:00.000Z',
+    description: 'Monthly savings',
   });
 }
