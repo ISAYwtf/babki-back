@@ -151,7 +151,7 @@ export class ExpenseLimitsService {
     const expenseRevenue = await this.findRevenue(limit.userId.toString(), {
       startDate: limit.startDate.toString(),
       endDate: limit.endDate.toString(),
-      categoryId: limit.category.toString(),
+      categoryId: limit.category._id.toString(),
     });
 
     return {

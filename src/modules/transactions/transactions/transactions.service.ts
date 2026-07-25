@@ -152,7 +152,7 @@ export class TransactionsService {
     query: Pick<
       ListTransactionsQueryDto,
       'snapshotId' | 'accountId' | 'fromDate' | 'toDate' | 'transactionType'
-    >,
+    > & { categoryId?: string },
   ) {
     const filter: {
       userId: Types.ObjectId;
@@ -161,9 +161,14 @@ export class TransactionsService {
         $gte?: Date;
         $lte?: Date;
       };
+      category?: Types.ObjectId;
       snapshotId?: Types.ObjectId;
       accountId?: Types.ObjectId;
     } = { userId };
+
+    if (query.categoryId) {
+      filter.category = new Types.ObjectId(query.categoryId);
+    }
 
     if (query.snapshotId) {
       filter.snapshotId = new Types.ObjectId(query.snapshotId);

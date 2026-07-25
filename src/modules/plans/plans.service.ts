@@ -17,7 +17,7 @@ import { ClosePlanDto } from './dto/close-plan.dto';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { ListPlansQueryDto } from './dto/list-plans-query.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
-import { Plan, PlanDocument } from './schemas/plan.schema';
+import { Plan, PlanDocument, PlanStatus } from './schemas/plan.schema';
 
 @Injectable()
 export class PlansService {
@@ -49,7 +49,7 @@ export class PlansService {
     const foundUserId = await this.ensureUserExists(userId);
     const { page, limit, skip } = getPagination(query);
 
-    const filter: { userId: Types.ObjectId; status?: string } = {
+    const filter: { userId: Types.ObjectId; status?: PlanStatus } = {
       userId: foundUserId,
     };
     if (query.status) {
