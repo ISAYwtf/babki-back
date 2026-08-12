@@ -30,6 +30,7 @@ async function clearDatabase(connection: Connection) {
 
 export async function runSeeders(app: INestApplicationContext) {
   const connection = app.get<Connection>(getConnectionToken());
+  const anchorDate = new Date();
   await clearDatabase(connection);
 
   const { userId } = await seedUsers(app);
@@ -45,15 +46,15 @@ export async function runSeeders(app: INestApplicationContext) {
     `🏷️  Categories seeded  (${Object.keys(categories).length} total)`,
   );
 
-  await seedTransactions(app, userId, balanceAccountId, categories);
-  console.log('💸 Transactions seeded  (108 total)');
+  await seedTransactions(app, userId, balanceAccountId, categories, anchorDate);
+  console.log('💸 Transactions seeded  (116 total)');
 
-  await seedLimits(app, userId, categories);
+  await seedLimits(app, userId, categories, anchorDate);
   console.log('📊 Limits seeded  (2 total)');
 
-  await seedDebts(app, userId);
+  await seedDebts(app, userId, anchorDate);
   console.log('💳 Debts seeded  (2 total)');
 
-  await seedPlans(app, userId, categories);
+  await seedPlans(app, userId, categories, anchorDate);
   console.log('📋 Plans seeded  (7 total)');
 }

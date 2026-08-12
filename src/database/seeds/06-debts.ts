@@ -1,27 +1,38 @@
 import { INestApplicationContext } from '@nestjs/common';
 import { DebtsService } from '../../modules/debts/debts.service';
+import { getSeedDate } from './seed-date.utils';
 
-export async function seedDebts(app: INestApplicationContext, userId: string) {
+export async function seedDebts(
+  app: INestApplicationContext,
+  userId: string,
+  anchorDate: Date,
+) {
   const debtsService = app.get(DebtsService);
 
-  // Debt 1 — Артур: active, 2 partial repayments, 20,000 remaining
+  // Debt 1 — Артур: active, 3 partial repayments, 15,000 remaining
   const debtArtur = await debtsService.create(userId, {
     debtor: 'Артур',
     principalAmount: 50000,
     remainingAmount: 50000,
     description: 'Loan for car repair',
-    dueDate: '2026-09-01T00:00:00.000Z',
+    dueDate: getSeedDate(2, 1, anchorDate),
   });
   await debtsService.repay(userId, String(debtArtur._id), {
-    repaymentDate: '2026-04-10T00:00:00.000Z',
+    repaymentDate: getSeedDate(-4, 10, anchorDate),
     amount: 20000,
     description: 'First repayment',
     isIncome: false,
   });
   await debtsService.repay(userId, String(debtArtur._id), {
-    repaymentDate: '2026-05-15T00:00:00.000Z',
+    repaymentDate: getSeedDate(-2, 15, anchorDate),
     amount: 10000,
     description: 'Second repayment',
+    isIncome: false,
+  });
+  await debtsService.repay(userId, String(debtArtur._id), {
+    repaymentDate: getSeedDate(0, 5, anchorDate),
+    amount: 5000,
+    description: 'Current month repayment',
     isIncome: false,
   });
 
@@ -33,7 +44,7 @@ export async function seedDebts(app: INestApplicationContext, userId: string) {
     description: 'Loan for vacation',
   });
   await debtsService.repay(userId, String(debtMaria._id), {
-    repaymentDate: '2026-03-20T00:00:00.000Z',
+    repaymentDate: getSeedDate(-3, 20, anchorDate),
     amount: 100000,
     description: 'Full repayment',
     isIncome: false,
