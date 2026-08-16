@@ -6,7 +6,7 @@
 
 The application currently contains these functional areas:
 
-- `auth`: register, login, JWT guards, `@Public()` and `@CurrentUser()` decorators
+- `auth`: register, password/TOTP login, recovery codes, JWT guards, `@Public()` and `@CurrentUser()` decorators
 - `users`: profile read and update for the authenticated user
 - `accounts`: base schema with two discriminators — `balance` and `saving`
 - `accounts-snapshots`: one snapshot per account per month, tracks account balance over time
@@ -40,58 +40,68 @@ Technical cross-cutting behavior:
 
 ## Authentication
 
-Every endpoint requires a valid JWT Bearer token except `POST /auth/register` and `POST /auth/login`.
+Every endpoint requires a valid JWT Bearer token except registration and the two login steps.
 
 **Flow:**
 
 1. `POST /auth/register` — create an account with email, password, first/last name, and currency
-2. `POST /auth/login` — authenticate and receive `{ access_token }`
-3. Include the token on all subsequent requests: `Authorization: Bearer <access_token>`
+2. `POST /auth/login` — authenticate and receive `{ accessToken, user }` when 2FA is disabled
+3. When 2FA is enabled, the password step instead returns `{ requiresTwoFactor, challengeToken, expiresAt }`; complete it at `POST /auth/login/two-factor` with a TOTP or recovery code
+4. Include the resulting token on subsequent requests: `Authorization: Bearer <accessToken>`
 
-The JWT payload carries `{ sub: userId, email }`. Controllers access the authenticated user via the `@CurrentUser()` decorator — there is no `:userId` route parameter.
+The JWT payload carries `{ sub: userId, email, authVersion }`. Protected requests compare `authVersion` with MongoDB so completing enrollment, regenerating recovery codes, or disabling 2FA immediately revokes older tokens. Controllers access the authenticated user via the `@CurrentUser()` decorator — there is no `:userId` route parameter.
+
+### TOTP two-factor authentication
+
+The optional TOTP flow uses RFC 6238 with SHA-1, six digits, a 30-second period, and a server verification window of the previous/current/next time step. TOTP reduces damage from password compromise but is not phishing-resistant.
+
+Authenticated management endpoints:
+
+```text
+GET  /auth/two-factor
+POST /auth/two-factor/setup
+POST /auth/two-factor/setup/confirm
+POST /auth/two-factor/disable
+POST /auth/two-factor/recovery/regenerate
+```
+
+Public login endpoints:
+
+```text
+POST /auth/login
+POST /auth/login/two-factor
+```
+
+`POST /auth/two-factor/setup` requires the current password and returns a temporary Base32 `secret`, `otpauthUri`, and `expiresAt`. The backend never generates a QR image: the frontend renders the QR locally from `otpauthUri`. Confirmation returns ten recovery codes exactly once plus a replacement access token. Store recovery codes offline; only keyed digests are retained by the API.
+
+Disabling accepts the current password plus TOTP or one recovery code. Regeneration accepts only the current password plus TOTP, invalidates the entire old recovery set, and returns ten replacements once.
 
 ## Configuration
 
-Runtime configuration is assembled from:
+Every runtime uses exactly two files:
 
-- environment variables in `.env`
-- a JSON secrets file referenced by `SECRETS_FILE_PATH`
+1. `.env` contains non-secret application and deployment settings.
+2. One JSON file contains secrets and is selected by `SECRETS_FILE_PATH`.
 
-Example environment file from the repo:
+`SECRETS_FILE_PATH` must be relative to the project root and must not contain
+parent-directory traversal. The repository provides environment-specific pairs:
 
-```env
-NODE_ENV=development
-PORT=5001
-API_PREFIX=api/v1
-SECRETS_FILE_PATH=config/secrets/local.json
-MONGO_DB_NAME=babki_db
-```
+| Environment    | General configuration     | Secret structure                             |
+| -------------- | ------------------------- | -------------------------------------------- |
+| Direct local   | `.env.example`            | `config/secrets/example.json`                |
+| Docker Compose | `.env.docker.example`     | `config/secrets/docker-compose.example.json` |
+| Production     | `.env.production.example` | `config/secrets/production.example.json`     |
 
-Example secrets file from the repo:
+General settings such as Mongo topology, `JWT_EXPIRES_IN`, rollout flags,
+`TRUST_PROXY`, ports, prefixes, and authentication limits belong only in `.env`.
+The JSON file may contain only `MONGO_URI` or Mongo credentials, `JWT_SECRET`,
+the TOTP/recovery keyrings and active IDs, and `AUTH_THROTTLE_HMAC_KEY`.
 
-```json
-{
-  "MONGO_AUTH_ENABLED": false,
-  "MONGO_HOST": "localhost",
-  "MONGO_PORT": 27017,
-  "MONGO_USER": "babki_user",
-  "MONGO_PASSWORD": "change-me",
-  "MONGO_AUTH_SOURCE": "admin",
-  "JWT_SECRET": "change-me"
-}
-```
+`MONGO_DB_NAME` remains required even when the secret file provides a complete
+`MONGO_URI`. Missing files, invalid paths, malformed keys, or reused key material
+cause startup to fail before the API accepts requests.
 
-How the app uses these values:
-
-- `PORT`: HTTP port for the Nest app
-- `API_PREFIX`: global API prefix, defaulting to `api/v1`
-- `SECRETS_FILE_PATH`: path to the JSON file with Mongo connection settings
-- `MONGO_DB_NAME`: required database name
-- `MONGO_URI`: optional full Mongo connection string in the secrets file
-- `MONGO_AUTH_ENABLED`: when `true`, the app builds an authenticated Mongo URI from host, port, user, password, and auth source
-- `JWT_SECRET`: required in production; used to sign and verify JWT tokens
-
-If `MONGO_DB_NAME` is missing, the service will fail at startup. In production, startup also fails if `JWT_SECRET` is absent.
+If required configuration or key material is missing, malformed, the wrong length, or references an unknown active key, the service fails before accepting requests.
 
 ## Getting Started
 
@@ -103,19 +113,19 @@ npm install
 
 ### 2. Create local environment files
 
-Copy the example env file and adjust values if needed:
+Copy the direct-local environment example and generate the one secret file it
+references:
 
 ```bash
 cp .env.example .env
+npm run secrets:generate
 ```
 
-Create the secrets file referenced by `SECRETS_FILE_PATH`. The repo includes `config/secrets/example.json` as a template:
-
-```bash
-cp config/secrets/example.json config/secrets/local.json
-```
-
-Set a `JWT_SECRET` value in `config/secrets/local.json`.
+The generator reads `SECRETS_FILE_PATH` from `.env`, writes the file with mode
+`0600`, and refuses accidental overwrite. The default local example disables
+Mongo authentication. If authentication is enabled, add `MONGO_USER` and
+`MONGO_PASSWORD` to the secret JSON; keep host, port, auth source, and replica-set
+configuration in `.env`.
 
 ### 3. Start MongoDB as a replica set
 
@@ -201,6 +211,17 @@ All routes are exposed under the configured global prefix (`api/v1` by default).
 ```
 POST /auth/register
 POST /auth/login
+POST /auth/login/two-factor
+```
+
+### Two-factor management (JWT protected)
+
+```
+GET  /auth/two-factor
+POST /auth/two-factor/setup
+POST /auth/two-factor/setup/confirm
+POST /auth/two-factor/disable
+POST /auth/two-factor/recovery/regenerate
 ```
 
 ### User profile
@@ -326,34 +347,33 @@ Not found in repo:
 
 ## Docker Workflow
 
+The complete local-upgrade and production-rollout procedure is in [Docker build and deployment](docs/docker-deployment.md).
+
 The repo includes a containerized local stack:
 
 - `Dockerfile`: multi-stage production image for the NestJS API
 - `docker-compose.yml`: starts the API together with MongoDB configured as a replica set
-- `config/secrets/docker-compose.json`: Mongo connection settings used by the API container
+- `scripts/generate-secrets.mjs`: creates the ignored secrets file selected by `.env` without printing values
+- `config/secrets/docker-compose.example.json`: non-runnable structure example only
 
-### 1. Prepare environment files
+### Local quick start
 
-The API container still reads `.env`, so create it if you have not already:
+Install the Docker-specific version of the same two runtime files, then generate
+secrets once:
 
 ```bash
-cp .env.example .env
+cp .env.docker.example .env
+npm run secrets:generate
 ```
 
-The default Compose setup overrides `SECRETS_FILE_PATH` to use `config/secrets/docker-compose.json`, which is already included in the repo and points the API to the `mongo` service.
-
-### 2. Build and start the containers
-
-Start the full stack in the foreground:
+Validate, build, and start with new enrollment disabled:
 
 ```bash
-docker compose up --build
-```
-
-Start it in the background:
-
-```bash
-docker compose up --build -d
+docker compose config --quiet
+docker compose build api
+docker compose up -d
+docker compose ps
+curl --fail --silent --show-error http://127.0.0.1:5001/api/v1
 ```
 
 The services exposed by default are:
@@ -361,18 +381,14 @@ The services exposed by default are:
 - API: `http://localhost:5001/api/v1`
 - MongoDB: `localhost:27017`
 
-### 3. Useful Docker commands
+The generated `config/secrets/docker-compose.local.json` is ignored by Git, mounted read-only, and has owner-only permissions. The generator refuses accidental overwrite. Do not use `--force` during a routine rebuild because rotating encryption keys without preserving the old keyring can lock enrolled users out.
+
+### Useful Docker commands
 
 Stop the stack:
 
 ```bash
 docker compose down
-```
-
-Stop the stack and remove the MongoDB data volume:
-
-```bash
-docker compose down -v
 ```
 
 View container logs:
@@ -386,15 +402,20 @@ Rebuild only the API image after code or dependency changes:
 
 ```bash
 docker compose build api
+docker compose up -d --no-deps --force-recreate api
 ```
 
-### 4. Notes about the container setup
+Never add `-v` to `docker compose down` during an upgrade: that deletes the MongoDB volume.
+
+### Notes about the container setup
 
 - MongoDB data is stored in the named Docker volume `mongo_data`.
 - MongoDB is started as a single-node replica set inside the container so multi-document transactions work.
-- The API container mounts `config/secrets/docker-compose.json` as a read-only file instead of baking secrets into the image.
+- The API container mounts the relative path selected by `SECRETS_FILE_PATH` at the same path under `/app`, read-only.
+- Compose derives the API port and healthcheck URL from `PORT` and `API_PREFIX` in the same `.env`.
 - The API image runs as the non-root `node` user for better container security.
 - `depends_on` with a health check delays API startup until MongoDB is ready to accept connections.
+- `TOTP_ENROLLMENT_ENABLED` defaults to `false`; enabling it requires recreating the API container but not rebuilding the image.
 
 ## Testing
 
@@ -451,15 +472,22 @@ Useful startup/debug scripts from `package.json`:
 
 Recommended local workflow:
 
-1. Keep real secrets in `config/secrets/local.json`.
-2. Commit only templates such as `config/secrets/example.json`.
-3. Point `SECRETS_FILE_PATH` at the correct local file for your environment.
+1. Keep non-secret settings in `.env` and real secrets in its selected JSON file.
+2. Commit only `.env*.example` and `config/secrets/*.example.json` templates.
+3. Keep `SECRETS_FILE_PATH` relative to the project root.
 4. Prefer `MONGO_URI` when you already have a managed Mongo connection string.
 
 Notes:
 
-- `.env.example` and `config/secrets/example.json` are templates, not production credentials.
+- All `.env*.example` and `config/secrets/*.example.json` files are templates, not production credentials.
 - The repo does not include secret-management tooling, vault integration, or environment-specific deployment manifests.
+- Back up the complete TOTP encryption keyring separately from MongoDB. Losing an encryption key locks affected users out.
+- For encryption-key rotation, deploy the new key to every instance, switch the active key ID, and retain old keys until no envelope references them. Encryption rotates lazily after successful verification.
+- For recovery-HMAC rotation, retain old keys until every code under that key is consumed or regenerated; digests cannot be migrated without plaintext.
+- Run the API only behind TLS, keep server clocks NTP-synchronized, and never widen the TOTP verification window to compensate for clock drift.
+- Trust forwarded IP headers only through an explicit `TRUST_PROXY` policy matching known proxies. The default is `false`.
+- Default rolling limits are 15 minutes: 5 password failures per normalized email, 50 per trusted IP, 5 failures per challenge, and a 15-minute account block after 10 second-factor failures. Limits are runtime-configurable through the `AUTH_*` variables in `.env.example`.
+- Deploy first with `TOTP_ENROLLMENT_ENABLED=false`. After every instance enforces the two-step login and JWT version checks, enable enrollment. Once any factor is enabled, do not roll back to password-only binaries; forward-fix or stop authentication traffic instead.
 
 ## Troubleshooting
 
@@ -467,9 +495,11 @@ If the service fails during startup, check these first:
 
 - MongoDB is running as a replica set and is reachable
 - `MONGO_DB_NAME` is set in `.env`
-- `SECRETS_FILE_PATH` points to an existing JSON file
+- `SECRETS_FILE_PATH` is relative, stays inside the project, and points to an existing JSON file
 - your Mongo auth settings match the actual database configuration
 - `JWT_SECRET` is set in the secrets file (required in production)
+- all three independent 32-byte Base64 key values and both active key IDs are configured
+- server time is synchronized and `TRUST_PROXY` matches the real ingress topology
 
 If requests fail validation, the app is likely rejecting unknown fields, invalid ObjectIds, or invalid DTO values through the global validation pipe.
 

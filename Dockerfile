@@ -30,8 +30,5 @@ COPY package*.json ./
 RUN mkdir -p /app/config/secrets && chown -R node:node /app
 USER node
 
-EXPOSE 5001
-
 # Start the compiled NestJS app.
 CMD ["node", "dist/main"]
-

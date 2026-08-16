@@ -4,15 +4,21 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { ClientSession, Model } from 'mongoose';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User, UserDocument } from './schemas/user.schema';
 
-export type UserProfile = Omit<User, 'passwordHash'> & {
+export type UserProfile = Omit<User, 'authVersion' | 'passwordHash'> & {
   _id: unknown;
   createdAt?: Date;
   updatedAt?: Date;
+};
+
+export type UserAuthenticationState = {
+  userId: string;
+  email: string;
+  authVersion: number;
 };
 
 @Injectable()
@@ -51,6 +57,59 @@ export class UsersService {
       .select('+passwordHash')
       .lean()
       .exec();
+  }
+
+  async findByIdWithPassword(userId: string) {
+    return this.userModel
+      .findById(userId)
+      .select('+passwordHash +authVersion')
+      .lean()
+      .exec();
+  }
+
+  async findAuthenticationState(
+    userId: string,
+  ): Promise<UserAuthenticationState> {
+    const user = await this.userModel
+      .findById(userId)
+      .select('+authVersion email')
+      .lean()
+      .exec();
+
+    if (!user) {
+      throw new NotFoundException(`User ${userId} not found.`);
+    }
+
+    return {
+      userId: String(user._id),
+      email: user.email,
+      authVersion: user.authVersion ?? 0,
+    };
+  }
+
+  async incrementAuthVersion(
+    userId: string,
+    session: ClientSession,
+  ): Promise<UserAuthenticationState> {
+    const user = await this.userModel
+      .findByIdAndUpdate(
+        userId,
+        { $inc: { authVersion: 1 } },
+        { returnDocument: 'after', session },
+      )
+      .select('+authVersion email')
+      .lean()
+      .exec();
+
+    if (!user) {
+      throw new NotFoundException(`User ${userId} not found.`);
+    }
+
+    return {
+      userId: String(user._id),
+      email: user.email,
+      authVersion: user.authVersion ?? 0,
+    };
   }
 
   async update(userId: string, updateUserDto: UpdateUserDto) {
@@ -100,6 +159,7 @@ export class UsersService {
   private serializeUser(user: UserDocument | Record<string, unknown>) {
     const profile = { ...(user as Record<string, unknown>) };
     delete profile.passwordHash;
+    delete profile.authVersion;
 
     return profile as UserProfile;
   }

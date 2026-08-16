@@ -22,6 +22,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
       ? exception.getResponse()
       : 'Internal server error';
 
+    if (
+      status === Number(HttpStatus.TOO_MANY_REQUESTS) &&
+      typeof (exception as { retryAfterSeconds?: unknown })
+        .retryAfterSeconds === 'number'
+    ) {
+      response.setHeader(
+        'Retry-After',
+        String((exception as { retryAfterSeconds: number }).retryAfterSeconds),
+      );
+    }
+
     response.status(status).json({
       statusCode: status,
       message: this.extractMessage(payload),

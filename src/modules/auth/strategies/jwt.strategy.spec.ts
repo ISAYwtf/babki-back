@@ -6,7 +6,7 @@ import { JwtStrategy } from './jwt.strategy';
 
 describe('JwtStrategy', () => {
   const usersService = {
-    findProfile: jest.fn(),
+    findAuthenticationState: jest.fn(),
   };
   const configService = {
     getOrThrow: jest.fn().mockReturnValue('test-secret'),
@@ -28,9 +28,31 @@ describe('JwtStrategy', () => {
     strategy = moduleRef.get(JwtStrategy);
   });
 
-  it('returns the authenticated user from a valid payload', async () => {
-    usersService.findProfile.mockResolvedValue({
-      _id: '507f1f77bcf86cd799439011',
+  it('returns the authenticated user when token version matches', async () => {
+    usersService.findAuthenticationState.mockResolvedValue({
+      userId: '507f1f77bcf86cd799439011',
+      email: 'ada@example.com',
+      authVersion: 3,
+    });
+
+    await expect(
+      strategy.validate({
+        sub: '507f1f77bcf86cd799439011',
+        email: 'ada@example.com',
+        authVersion: 3,
+      }),
+    ).resolves.toEqual({
+      userId: '507f1f77bcf86cd799439011',
+      email: 'ada@example.com',
+      authVersion: 3,
+    });
+  });
+
+  it('treats a missing token version as zero during migration', async () => {
+    usersService.findAuthenticationState.mockResolvedValue({
+      userId: '507f1f77bcf86cd799439011',
+      email: 'ada@example.com',
+      authVersion: 0,
     });
 
     await expect(
@@ -38,14 +60,29 @@ describe('JwtStrategy', () => {
         sub: '507f1f77bcf86cd799439011',
         email: 'ada@example.com',
       }),
-    ).resolves.toEqual({
+    ).resolves.toMatchObject({ authVersion: 0 });
+  });
+
+  it('rejects a stale token version', async () => {
+    usersService.findAuthenticationState.mockResolvedValue({
       userId: '507f1f77bcf86cd799439011',
       email: 'ada@example.com',
+      authVersion: 4,
     });
+
+    await expect(
+      strategy.validate({
+        sub: '507f1f77bcf86cd799439011',
+        email: 'ada@example.com',
+        authVersion: 3,
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it('rejects tokens for users that no longer exist', async () => {
-    usersService.findProfile.mockRejectedValue(new NotFoundException());
+    usersService.findAuthenticationState.mockRejectedValue(
+      new NotFoundException(),
+    );
 
     await expect(
       strategy.validate({

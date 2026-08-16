@@ -8,6 +8,7 @@ import { AuthenticatedUser } from '../interfaces/authenticated-user.interface';
 type JwtPayload = {
   sub: string;
   email: string;
+  authVersion?: number;
 };
 
 @Injectable()
@@ -24,15 +25,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
+    const tokenAuthVersion = payload.authVersion ?? 0;
     try {
-      await this.usersService.findProfile(payload.sub);
+      const state = await this.usersService.findAuthenticationState(
+        payload.sub,
+      );
+      if (state.authVersion !== tokenAuthVersion) {
+        throw new UnauthorizedException();
+      }
+
+      return state;
     } catch {
       throw new UnauthorizedException();
     }
-
-    return {
-      userId: payload.sub,
-      email: payload.email,
-    };
   }
 }

@@ -15,6 +15,9 @@ export class User {
   @Prop({ required: true, select: false })
   passwordHash: string;
 
+  @Prop({ default: 0, select: false })
+  authVersion: number;
+
   @Prop({ trim: true })
   description?: string;
 }
